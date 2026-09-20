@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "frameio-web-uploader"
+version = "0.1.0"
+description = "Unofficial Frame.io V4 web-client uploader with browser session authentication"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.32,<3", "python-dotenv>=1,<2"]
+
+[project.scripts]
+frameio-upload = "frameio_uploader.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["frameio_uploader*"]
+
+[tool.setuptools.package-data]
+frameio_uploader = ["browser_login.mjs"]

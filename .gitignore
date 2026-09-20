@@ -42,6 +42,10 @@ coverage.xml
 credentials*.json
 *tokens*.json
 .state/
+*.dpapi
+*.sqlite3
+*.sqlite3-journal
+login-bridge.js
 .playwriter*
 
 # Delivery manifests, upload progress and runtime artifacts
