@@ -91,7 +91,7 @@ class SessionStore:
 
     def load(self):
         if not self.path.exists():
-            raise UploaderError('No local session. Run: python -m frameio_uploader login')
+            raise UploaderError('No local session. Run: python -m framebridge login')
         try:
             return json.loads(_dpapi(self.path.read_bytes(), False))
         except (ValueError, OSError):

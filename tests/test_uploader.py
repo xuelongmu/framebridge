@@ -8,11 +8,11 @@ from unittest.mock import Mock
 
 import requests
 
-from frameio_uploader.api import Api
-from frameio_uploader.cli import remaining_plan
-from frameio_uploader.login import session_id
-from frameio_uploader.storage import Journal, SessionStore, UploaderError
-from frameio_uploader.uploader import Slice, part_bounds, upload
+from framebridge.api import Api
+from framebridge.cli import remaining_plan
+from framebridge.login import session_id
+from framebridge.storage import Journal, SessionStore, UploaderError
+from framebridge.uploader import Slice, part_bounds, upload
 
 
 class Tests(unittest.TestCase):

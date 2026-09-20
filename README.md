@@ -1,4 +1,7 @@
-# Frame.io V4 web uploader
+# Framebridge
+
+An unofficial Frame.io V4 CLI. The distribution, Python module, and installed
+command are all named `framebridge`.
 
 A Windows Python uploader for the **private Frame.io V4 web GraphQL API**. This is
 not Adobe's supported public V4 REST API. It uses your own browser login without
@@ -20,6 +23,13 @@ python -m venv .venv
 python -m pip install -e .
 ```
 
+After installation, use `framebridge login` or `python -m framebridge login`.
+If you installed the previous `frameio-web-uploader` distribution, uninstall it
+with `python -m pip uninstall frameio-web-uploader` before reinstalling this one.
+The repository directory is `D:\framebridge`. Credentials and upload journals
+move with the repository and remain in its `.state` directory. Update any saved
+terminal shortcuts or scheduled tasks that reference the old directory.
+
 Keep your existing `.env`. If you do not have one, copy `.env.example` to `.env`.
 Set `FRAMEIO_PROJECT_ID` and optionally `FRAMEIO_FOLDER_ID` to your V4 resource
 IDs, or supply the command-line arguments below. No API key is required.
@@ -30,10 +40,10 @@ Open Frame.io in Chrome, sign in, and click Playwriter's extension icon to enabl
 the tab. Then run:
 
 ```powershell
-python -m frameio_uploader login
-python -m frameio_uploader status
-python -m frameio_uploader project YOUR_PROJECT_UUID
-python -m frameio_uploader list YOUR_FOLDER_UUID
+python -m framebridge login
+python -m framebridge status
+python -m framebridge project YOUR_PROJECT_UUID
+python -m framebridge list YOUR_FOLDER_UUID
 ```
 
 The login command opens and closes its own tab. It captures only the Frame.io
@@ -46,7 +56,7 @@ are not synchronized. Do not run two state directories using the same session.
 ## Upload a file
 
 ```powershell
-python -m frameio_uploader upload .\sample.txt --project YOUR_PROJECT_UUID --folder-id YOUR_FOLDER_UUID
+python -m framebridge upload .\sample.txt --project YOUR_PROJECT_UUID --folder-id YOUR_FOLDER_UUID
 ```
 
 The client checks project and destination permissions, creates one transfer batch
