@@ -1,0 +1,4 @@
+frameioclient
+python-dotenv
+tqdm
+requests
