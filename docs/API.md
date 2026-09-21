@@ -22,18 +22,25 @@ public V4 REST endpoint in our tests.
 
 | Operation | Discovery evidence | Implementation status |
 | --- | --- | --- |
-| User, project, folder permissions | Read operations verified | Reduced selections implemented; fresh live check pending |
+| User, project, folder permissions | Read operations verified | Reduced selections live-tested September 21; account is under project.workspace; permissions require FolderAsset fragment |
 | Folder cursor pagination | Filtered listing verified | General listing implemented; empty sort/filter variant pending |
 | CreateTransferBatch | Tiny standalone upload verified | One batch per file |
 | AddAssetsToTransferBatch | Tiny standalone upload verified | One existing destination folder per asset |
 | Signed S3 PUT | Tiny single-part upload reached TRANSCODED | Streamed upload; bounded same-part retries |
-| GetAssetUploadUrls | Seen in web-client source | Offset URL retrieval still needs live validation |
+| GetAssetUploadUrls | Seen in web-client source | Offset retrieval verified across the completed 35-part live transfer |
 | UpdateTransferBatches | SUCCEEDED update verified | Only after server asset completion |
-| Multipart upload | Part sizing seen in client source | Experimental opt-in; no live multipart test |
+| Multipart upload | Part sizing seen in client source | 68.1 GB / 35-part upload completed; forced process restart retained the same asset and resumed; server status TRANSCODED |
 | Folder creation, sharing, downloads | Not established for this workflow | Not implemented |
 
 The two discovery upload tests were tiny disposable files and were cleaned up.
 They establish the protocol, not end-to-end validation of this Python client.
+On September 21, this client completed a 68.1 GB transfer across all 35 parts after
+a forced process interruption and restart. The journal reached `complete`, the
+process exited successfully, and an independent status query returned `TRANSCODED`.
+Full-file integrity remains unverified: no download-and-checksum comparison was
+performed. This test does not establish every failure mode or storage backend.
+The offline suite now includes a real loopback HTTP transfer whose reassembled
+bytes match the synthetic source after interruption and journal reopening.
 
 ## Upload contract
 

@@ -15,12 +15,12 @@ from .storage import UploaderError
 ENDPOINT = 'https://api.frame.io/graphql'
 ME = 'query Me { me { id email name } }'
 PROJECT = '''query Project($id: ID!) { project(projectId: $id) {
-id name rootAssetId workspaceId account { id }
+id name rootAssetId workspaceId workspace { account { id } }
 permissions { canCreateAsset canDownloadAsset canShare canEditUserPermissions }
 } }'''
 FOLDER = '''query Folder($id: ID!) { asset(assetId: $id) {
 id name __typename project { id } parent { id }
-permissions { canCreateChildren canViewChildren }
+... on FolderAsset { permissions { canCreateChildren canViewChildren } }
 } }'''
 ASSET = 'query Asset($id: ID!) { asset(assetId: $id) { id name status } }'
 REFRESH = '''mutation RefreshAccessToken($input: CycleRefreshTokenInput!) {
@@ -101,6 +101,7 @@ class Api:
         project = self.call('Project', PROJECT, {'id': project_id}).get('project')
         if not project:
             raise UploaderError('Project is not accessible.')
+        project['account'] = project['workspace']['account']
         return project
 
     def folder(self, folder_id, project_id):

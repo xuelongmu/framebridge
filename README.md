@@ -63,9 +63,10 @@ The client checks project and destination permissions, creates one transfer batc
 and asset, streams bytes to S3, waits for completion, and updates the transfer
 batch. It does not create folders or delete assets.
 
-Files over 5 MiB require `--experimental-multipart`. Multipart layout comes from
-the observed web client but has **not been live-tested**. Validate with disposable
-data before using it for production deliveries. Uploads are sequential.
+Files over 5 MiB require `--experimental-multipart`. A 68.1 GB, 35-part live upload
+completed successfully, including a forced interruption and resume. Broader
+failure coverage and full-file checksum verification remain incomplete. Validate
+with disposable data before production deliveries. Uploads are sequential.
 
 ## Continue the legacy manifest
 
@@ -105,5 +106,8 @@ python -m unittest discover -s tests -v
 ```
 
 See [API evidence and limitations](docs/API.md) for tested operations and remaining
-validation. The new CLI's end-to-end browser login and live requests still need
-validation after reconnecting the browser extension.
+validation. Browser login, identity, project/folder permission checks, and a full
+68.1 GB multipart upload with process-interruption recovery were live-tested on
+September 21, 2026. All 35 parts completed, the uploader exited successfully, and
+a subsequent server query returned `TRANSCODED`. A download-and-checksum comparison
+has not been performed. Do not treat this test as production certification.
