@@ -30,7 +30,10 @@ public V4 REST endpoint in our tests.
 | GetAssetUploadUrls | Seen in web-client source | Offset retrieval verified across the completed 35-part live transfer |
 | UpdateTransferBatches | SUCCEEDED update verified | Only after server asset completion |
 | Multipart upload | Part sizing seen in client source | 68.1 GB / 35-part upload completed; forced process restart retained the same asset and resumed; server status TRANSCODED |
-| Folder creation, sharing, downloads | Not established for this workflow | Not implemented |
+| Proxy downloads | Signed media URLs and bounded GET ranges verified | Resumable range downloader; 1 MiB CLI live sample verified September 23; full remote proxy transfer pending |
+| Account, workspace, project navigation | Reduced queries live-tested September 23 | Read-only commands |
+| Comments and versions | Comment query captured from web app; empty export tested | Read-only export; populated comments and version stacks need live validation |
+| Folder creation, sharing, deletion, move, rename | Outside the approved scope | Not implemented |
 
 The two discovery upload tests were tiny disposable files and were cleaned up.
 They establish the protocol, not end-to-end validation of this Python client.
@@ -67,9 +70,16 @@ server-side cleanup nor automatic recovery of ambiguous creation is implemented.
 
 Permission checks are authoritative for the current session only. Discovery
 showed upload permission did not imply download, sharing, or permission-management
-rights. The implementation does not attempt those actions. GraphQL introspection
+rights. Downloads require an authorized session; sharing and permission changes
+are not implemented. GraphQL introspection
 was disabled; do not depend on it for runtime discovery.
 
 Public integration reference: [Adobe Frame.io developer documentation](https://developer.adobe.com/frameio/).
 This private adapter is unsupported and must be revalidated when the web client
 changes. Prefer supported public V4 OAuth if Developer Console setup becomes viable.
+
+For download recovery, batch planning, safety restrictions, and validation limits,
+see [Transfer and inspection commands](TRANSFERS.md). Downloads use the media
+`videoTranscodes` fields, including `downloadUrl`, `encodeStatus`, key, dimensions,
+and byte size. A HEAD request returned 404 in discovery; GET Range returned 206.
+No credentials or signed media URLs are persisted in this documentation.

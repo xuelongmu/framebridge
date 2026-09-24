@@ -3,7 +3,7 @@
 An unofficial Frame.io V4 CLI. The distribution, Python module, and installed
 command are all named `framebridge`.
 
-A Windows Python uploader for the **private Frame.io V4 web GraphQL API**. This is
+A Windows Python transfer and inspection CLI for the **private Frame.io V4 web GraphQL API**. This is
 not Adobe's supported public V4 REST API. It uses your own browser login without
 Adobe Developer Console setup. Private operations can change without notice.
 
@@ -99,7 +99,10 @@ journal entries are skipped locally, not revalidated remotely.
 delivery manifests, logs, and the original handoff. Only `.env.example` is tracked.
 DPAPI protects against offline casual inspection, not malicious software running
 as your Windows user. Tokens and signed S3 URLs must never appear in Git or logs.
-No remote is configured and no source or credential is published automatically.
+The repository has a private GitHub remote. Nothing is published automatically.
+The client exposes no remote delete, move, rename, or folder-creation operations.
+Its mutation allowlist permits only session renewal and the existing upload flow.
+This is a client restriction, not a restriction on the browser credential's permissions.
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -111,3 +114,18 @@ validation. Browser login, identity, project/folder permission checks, and a ful
 September 21, 2026. All 35 parts completed, the uploader exited successfully, and
 a subsequent server query returned `TRANSCODED`. A download-and-checksum comparison
 has not been performed. Do not treat this test as production certification.
+
+## Download proxies and browse media
+
+See [Transfer and inspection commands](docs/TRANSFERS.md) for profiles, proxy
+selection, resumable downloads, batch plans, reports, and read-only review tools.
+
+```powershell
+python -m framebridge --profile downloads whoami
+python -m framebridge --profile downloads renditions YOUR_ASSET_UUID
+python -m framebridge --profile downloads download YOUR_ASSET_UUID --resolution 360p --output .\downloads\proxy.mp4 --dry-run
+```
+
+Remove `--dry-run` to download the complete selected rendition. To test only
+1 MiB, add `--max-bytes 1048576`; a sample might not be playable. The downloader
+never falls back to the original. Originals require `--rendition original`.

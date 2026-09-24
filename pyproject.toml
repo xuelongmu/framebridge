@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "framebridge"
-version = "0.1.0"
+version = "0.2.0"
 description = "Framebridge: an unofficial Frame.io V4 CLI with browser session authentication"
 requires-python = ">=3.10"
 dependencies = ["requests>=2.32,<3", "python-dotenv>=1,<2"]

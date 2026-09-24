@@ -38,7 +38,7 @@ def remaining_plan(data, contains=None):
     return files, completed, pending
 
 
-def main(argv=None):
+def legacy_main(argv=None):
     load_dotenv(ROOT / '.env')
     parser = argparse.ArgumentParser(description='Experimental Frame.io V4 web API uploader (not public V4 REST).')
     parser.add_argument('--state-dir', type=Path, default=ROOT / '.state')
@@ -122,3 +122,8 @@ def main(argv=None):
         # Third-party errors can contain HTTP credentials or signed URLs.
         print(f'Operation stopped ({type(error).__name__}); secrets omitted. Keep state and check the documentation.', file=sys.stderr)
         return 1
+
+
+def main(argv=None):
+    from .commands import main as dispatch
+    return dispatch(argv)

@@ -35,6 +35,14 @@ class Api:
 
     def _request(self, name, query, variables, *, auth=True, retry_reads=True):
         read = query.lstrip().startswith('query ')
+        allowed = {'RefreshAccessToken': REFRESH,
+                   'CreateTransferBatch': CREATE_BATCH,
+                   'AddAssetsToTransferBatch': ADD_ASSET,
+                   'UpdateTransferBatches': COMPLETE_BATCH}
+        if not read and query != allowed.get(name):
+            raise UploaderError('Mutation is not permitted by this client.')
+        if read and re.search(r'\bmutation\b', query):
+            raise UploaderError('Mixed query/mutation documents are not permitted.')
         headers = {
             'content-type': 'application/json',
             'apollographql-client-name': self.credentials['client_name'],
@@ -56,7 +64,8 @@ class Api:
                 self.sleep(min(30, 2 ** attempt))
                 continue
             if not response.ok:
-                raise UploaderError(f'{name}: HTTP {response.status_code}. Re-login for expired authorization.')
+                hint = ' Run login again.' if response.status_code in (401, 403) else ''
+                raise UploaderError(f'{name}: HTTP {response.status_code}.' + hint)
             try:
                 body = response.json()
             except ValueError:
@@ -135,14 +144,12 @@ folderAssets(page: $page, query: $query) { nodes { id index } pageInfo { endCurs
         return asset['status']
 
     def create_batch(self, account_id, name):
-        query = '''mutation CreateTransferBatch($input: CreateTransferBatchInput!) {
-createTransferBatch(input: $input) { transferBatch { id } } }'''
+        query = CREATE_BATCH
         return self.call('CreateTransferBatch', query, {'input': {'accountId': account_id, 'name': name,
             'topLevelFileCount': 1, 'topLevelFolderCount': 0, 'uploadedVia': 'BROWSER'}})['createTransferBatch']['transferBatch']['id']
 
     def create_asset(self, batch_id, folder_id, name, size, mime):
-        query = '''mutation AddAssetsToTransferBatch($input: AddAssetsToTransferBatchInput!) {
-addAssetsToTransferBatch(input: $input) { assetItems { asset { id totalPartCount } } } }'''
+        query = ADD_ASSET
         data = self.call('AddAssetsToTransferBatch', query, {'input': {'transferBatchId': batch_id,
             'assets': [{'id': 0, 'name': name, 'type': 'file', 'parentId': folder_id, 'filesize': size, 'filetype': mime}]}})
         return data['addAssetsToTransferBatch']['assetItems'][0]['asset']
@@ -160,8 +167,15 @@ asset(assetId: $assetId) { uploadUrls(limit: $limit, offset: $offset) } }'''
         return url
 
     def complete_batch(self, batch_id):
-        query = '''mutation UpdateTransferBatches($input: UpdateTransferBatchesInput!) {
-updateTransferBatches(input: $input) { successful } }'''
+        query = COMPLETE_BATCH
         data = self.call('UpdateTransferBatches', query, {'input': {'transferBatchUpdates': [{'id': batch_id, 'status': 'SUCCEEDED'}]}})
         if not data['updateTransferBatches']['successful']:
             raise UploaderError('Transfer bookkeeping failed; rerun to reconcile the existing asset.')
+
+
+CREATE_BATCH = '''mutation CreateTransferBatch($input: CreateTransferBatchInput!) {
+createTransferBatch(input: $input) { transferBatch { id } } }'''
+ADD_ASSET = '''mutation AddAssetsToTransferBatch($input: AddAssetsToTransferBatchInput!) {
+addAssetsToTransferBatch(input: $input) { assetItems { asset { id totalPartCount } } } }'''
+COMPLETE_BATCH = '''mutation UpdateTransferBatches($input: UpdateTransferBatchesInput!) {
+updateTransferBatches(input: $input) { successful } }'''

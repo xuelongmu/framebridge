@@ -54,6 +54,11 @@ logs/
 *.log
 work/
 HANDOFF.md
+downloads/
+reports/
+*.part
+*.framebridge.json
+*.framebridge.lock
 
 # IDE / operating system
 .idea/
