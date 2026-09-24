@@ -164,5 +164,5 @@ was performed. The offline suite exercises real HTTP upload/download recovery.
 The WSL source is a copy, not another Git checkout. Changes in `D:\framebridge`
 do not automatically update it. Keep the copy in sync before further testing.
 The CLI now preserves case in POSIX upload identities; Windows identities retain
-their previous case-insensitive behavior. The legacy Windows manifest adapter
-keeps its original normalization rules and is not a Linux path converter.
+their previous case-insensitive behavior. Use native paths in upload manifests;
+Windows paths are not automatically converted to Linux paths.

@@ -1,12 +1,12 @@
 """CLI contracts: explicit profiles, URL-free JSON, read-only review tools."""
 import argparse
 import contextlib
-import io
 import json
 import os
 import re
 import sys
 from pathlib import Path
+from dotenv import load_dotenv
 
 from .catalog import Catalog, public
 from .downloader import download, safe_name
@@ -35,6 +35,7 @@ def report_write(path, value):
 
 def parser():
     from .cli import ROOT
+    load_dotenv(ROOT / '.env')
     p = argparse.ArgumentParser(description='Framebridge: unofficial Frame.io V4 transfers and read-only inspection')
     p.add_argument('--state-dir', type=Path, default=default_state_dir(ROOT))
     p.add_argument('--profile', default='default')
@@ -76,29 +77,20 @@ def parser():
     s.add_argument('--execute', action='store_true')
     s.add_argument('--experimental-multipart', action='store_true')
     s.add_argument('--report', type=Path)
-    for cmd in ('upload','remaining','list'):
-        sub.add_parser(cmd, add_help=False, help='Existing compatibility command (use COMMAND --help)')
+    s = sub.add_parser('upload', help='Upload one file to an existing folder')
+    s.add_argument('path', type=Path)
+    s.add_argument('--project', default=os.getenv('FRAMEIO_PROJECT_ID'))
+    s.add_argument('--folder-id', default=os.getenv('FRAMEIO_FOLDER_ID'))
+    s.add_argument('--experimental-multipart', action='store_true')
     return p
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     p = parser()
-    args, extra = p.parse_known_args(argv)
+    args = p.parse_args(argv)
     try:
         state = profile_dir(args.state_dir, args.profile)
-        if args.command in ('upload','remaining','list'):
-            from .cli import legacy_main
-            # Preserve the existing upload interface and state location.
-            if args.json:
-                buf, err = io.StringIO(), io.StringIO()
-                with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(err):
-                    result = legacy_main(['--state-dir', str(state), args.command, *extra])
-                emit({'ok':result==0, 'messages':buf.getvalue().splitlines(), 'errors':err.getvalue().splitlines()})
-                return result
-            return legacy_main(['--state-dir', str(state), args.command, *extra])
-        if extra:
-            p.error('unrecognized arguments: ' + ' '.join(extra))
         if args.command == 'profiles':
             names = ['default'] + sorted(x.name for x in (args.state_dir/'profiles').glob('*') if x.is_dir())
             emit([{'name':name,'logged_in':SessionStore(profile_dir(args.state_dir,name)/'session.dpapi').path.exists()} for name in names])
@@ -175,6 +167,8 @@ def main(argv=None):
             elif command == 'upload-batch':
                 result = upload_batch(api,state,args)
                 report_write(args.report,result)
+            elif command == 'upload':
+                result = upload_one(api, state, args)
             else: raise UploaderError('Unsupported command.')
             emit(result)
             return 1 if isinstance(result,dict) and result.get('failed') else 0
@@ -190,6 +184,28 @@ def main(argv=None):
 
 def progress(event):
     print(json.dumps({'progress':event}),file=sys.stderr,flush=True)
+
+
+def upload_one(api, state, args):
+    from .uploader import upload, PART_MIN
+    if not args.project or not args.folder_id:
+        raise UploaderError('Set --project and --folder-id, or FRAMEIO_PROJECT_ID and FRAMEIO_FOLDER_ID.')
+    if not args.path.is_file() or args.path.stat().st_size <= 0:
+        raise UploaderError('Choose a nonempty regular file.')
+    if args.path.stat().st_size > PART_MIN and not args.experimental_multipart:
+        raise UploaderError('Large files require --experimental-multipart.')
+    project = api.project(args.project)
+    if not project['permissions']['canCreateAsset']:
+        raise UploaderError('Project uploads are not permitted.')
+    if not api.folder(args.folder_id, args.project)['permissions']['canCreateChildren']:
+        raise UploaderError('Folder uploads are not permitted.')
+    journal = Journal(state / 'uploads.sqlite3')
+    try:
+        asset_id = upload(api, journal, args.path, args.project, project['account']['id'],
+                          args.folder_id, experimental=args.experimental_multipart)
+    finally:
+        journal.close()
+    return {'path':str(args.path), 'asset_id':asset_id}
 
 
 def download_folder(api,args):

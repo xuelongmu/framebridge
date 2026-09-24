@@ -9,7 +9,6 @@ from unittest.mock import Mock
 import requests
 
 from framebridge.api import Api
-from framebridge.cli import remaining_plan
 from framebridge.login import session_id
 from framebridge.storage import Journal, SessionStore, UploaderError
 from framebridge.uploader import Slice, part_bounds, upload
@@ -108,17 +107,6 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(UploaderError, 'ambiguous'):
             upload(api, journal, path, 'p', 'a', 'f')
         self.assertEqual(api.create_batch.call_count, 1)
-
-    def test_legacy_plan_preserved(self):
-        (self.root / 'missing_files.txt').write_text('E:/folder/file.txt\nE:/folder/next.txt')
-        (self.root / 'folder_ids.csv').write_text('uuid|E:\\folder')
-        progress = self.root / 'upload_progress.json'
-        progress.write_text(json.dumps(['E:\\folder\\file.txt']))
-        before = progress.read_bytes()
-        _, _, pending = remaining_plan(self.root)
-        self.assertEqual(len(pending), 1)
-        self.assertEqual(pending[0][1], 'uuid')
-        self.assertEqual(progress.read_bytes(), before)
 
     @unittest.skipUnless(os.name == 'nt', 'Windows DPAPI')
     def test_dpapi_roundtrip(self):

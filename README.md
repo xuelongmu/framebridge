@@ -1,14 +1,20 @@
 # Framebridge
 
-An unofficial Frame.io V4 CLI. The distribution, Python module, and installed
-command are all named `framebridge`.
+An unofficial, cross-platform CLI for uploading, downloading, and browsing
+Frame.io V4 media. Sign in with your existing browser session—no Adobe Developer
+Console setup required.
 
-A cross-platform Python transfer and inspection CLI for the **private Frame.io V4 web GraphQL API**. This is
-not Adobe's supported public V4 REST API. It uses your own browser login without
-Adobe Developer Console setup. Private operations can change without notice.
+Framebridge uses the **private Frame.io V4 web GraphQL API**, not Adobe's supported
+public REST API. Private operations can change without notice.
 
-The previous API-key uploader is preserved in the local Git tag
-`legacy-v2-baseline`. The current version never uses `FRAMEIO_TOKEN`.
+## Features
+
+- Resumable uploads and proxy downloads.
+- Account, workspace, project, and folder browsing, with folder-scoped search.
+- Batch transfer plans, named login profiles, and JSON reports.
+- Read-only media metadata, comments, and version inspection.
+
+There are no remote delete, move, rename, or folder-creation commands.
 
 ## Install
 
@@ -41,23 +47,9 @@ framebridge --help
 Use a Linux virtual environment and keep credentials in the Linux filesystem.
 Follow [WSL installation and session transfer](docs/PLATFORMS.md#install-in-wsl-ubuntu)
 to reuse an authorized Windows login without printing its credentials.
-Windows and WSL have been tested; macOS has not been live-tested.
-
-### Existing installations
-
-After installation, use `framebridge login` or `python -m framebridge login`.
-If you installed the previous `frameio-web-uploader` distribution, uninstall it
-with `python -m pip uninstall frameio-web-uploader` before reinstalling this one.
-The repository directory is `D:\framebridge`. Credentials and upload journals
-for this existing Windows installation remain in its `.state` directory. Update any saved
-terminal shortcuts or scheduled tasks that reference the old directory.
-
-See [Cross-platform and WSL setup](docs/PLATFORMS.md)
-for state locations, credential protection, and the tested WSL installation.
-
-Keep your existing `.env`. If you do not have one, copy `.env.example` to `.env`.
-Set `FRAMEIO_PROJECT_ID` and optionally `FRAMEIO_FOLDER_ID` to your V4 resource
-IDs, or supply the command-line arguments below. No API key is required.
+See [Cross-platform setup](docs/PLATFORMS.md) for state locations, credential
+protection, and platform limitations. After installation, use `framebridge` or
+`python -m framebridge` interchangeably.
 
 ## Sign in and inspect
 
@@ -65,49 +57,62 @@ Open Frame.io in Chrome, sign in, and click Playwriter's extension icon to enabl
 the tab. Then run:
 
 ```powershell
-python -m framebridge login
-python -m framebridge status
-python -m framebridge project YOUR_PROJECT_UUID
-python -m framebridge list YOUR_FOLDER_UUID
+framebridge login
+framebridge whoami
+framebridge accounts
+framebridge project PROJECT_UUID
+framebridge browse FOLDER_UUID
 ```
 
 The login command opens and closes its own tab. It captures only the Frame.io
 session and Apollo client headers. Windows encrypts the session with user-scoped
 DPAPI. Linux/macOS use an unencrypted owner-only `session.json` (0600) in a
 private directory (0700). It does not print the credentials.
-Close other Frame.io tabs during a long upload to reduce refresh-token rotation
-conflicts. If authorization fails, run `login` again; browser and uploader refresh
-are not synchronized. Do not run two state directories using the same session.
+Once signed in, routine commands use the saved session and renew it while the
+refresh credentials remain valid. Playwriter is needed for login, not each
+transfer. If renewal fails, sign in again. Do not use copies of the same session
+concurrently; browser and CLI token renewal are not synchronized.
+
+Replace `PROJECT_UUID`, `FOLDER_UUID`, and `ASSET_UUID` in examples with your
+Frame.io resource IDs. Use `framebridge COMMAND --help` for command options.
 
 ## Upload a file
 
 ```powershell
-python -m framebridge upload .\sample.txt --project YOUR_PROJECT_UUID --folder-id YOUR_FOLDER_UUID
+framebridge upload ./clip.mov --project PROJECT_UUID --folder-id FOLDER_UUID --experimental-multipart
 ```
 
-The client checks project and destination permissions, creates one transfer batch
-and asset, streams bytes to S3, waits for completion, and updates the transfer
-batch. It does not create folders or delete assets.
+The destination folder must already exist. Uploads are sequential, and files
+over 5 MiB require `--experimental-multipart`.
 
-Files over 5 MiB require `--experimental-multipart`. A 68.1 GB, 35-part live upload
-completed successfully, including a forced interruption and resume. Broader
-failure coverage and full-file checksum verification remain incomplete. Validate
-with disposable data before production deliveries. Uploads are sequential.
+## Download a proxy
 
-## Continue the legacy manifest
-
-```powershell
-python upload_remaining.py --dry-run
-python upload_remaining.py --folder admin --upload --project YOUR_PROJECT_UUID
+```sh
+framebridge renditions ASSET_UUID
+framebridge download ASSET_UUID --resolution 720p --output ./downloads/proxy.mp4 --dry-run
 ```
 
-The default is a dry run. Inputs are `data/missing_files.txt`, pipe-delimited
-`data/folder_ids.csv` (`folder UUID|local directory`), and the optional JSON list
-`data/upload_progress.json`. Existing completion entries are trusted as local
-history, not proof of remote presence. The new client never modifies these files.
-The supplied legacy history currently marks every manifest path completed, so
-the default plan has no pending uploads. Do not clear history to force a rerun.
-Folder IDs must belong to the specified V4 project. Missing mappings stop uploads.
+Inspect the plan, then remove `--dry-run` to download. Use an exact rendition key
+if multiple variants have the same resolution. Framebridge never falls back to
+the original; original downloads require `--rendition original`.
+
+For a bounded sample, add `--max-bytes 1048576` and use a separate output name.
+The sample is at most 1 MiB and might not be playable.
+
+## Profiles and batch transfers
+
+```sh
+framebridge --profile work login
+framebridge --profile work whoami
+framebridge --profile work --json browse FOLDER_UUID
+```
+
+Global options such as `--profile` and `--json` go before the command. Each profile
+has separate credentials and upload history.
+
+`upload-batch` and `download-folder` produce plans by default. Add `--execute` to
+transfer files. See [Transfer and inspection commands](docs/TRANSFERS.md) for
+manifest formats, download limits, reports, comments, and version inspection.
 
 ## Resume safely
 
@@ -121,39 +126,25 @@ ID with Frame.io before changing the journal; there is no automatic reset comman
 A changed file (size or modification time) is rejected on resume. Already complete
 journal entries are skipped locally, not revalidated remotely.
 
-## Security and verification
+For downloads, keep the `.part` and `.framebridge.json` files beside the output
+and rerun the same command. Existing unrelated files are never overwritten.
+
+## Security and limitations
 
 `.gitignore` excludes `.env`, Python environments/caches, credentials, local state,
-delivery manifests, logs, and the original handoff. Only `.env.example` is tracked.
+delivery manifests, and logs. Keep credentials and media outside source control.
 DPAPI protects against offline casual inspection, not malicious software running
 as your Windows user. Tokens and signed S3 URLs must never appear in Git or logs.
-The repository has a private GitHub remote. Nothing is published automatically.
-The client exposes no remote delete, move, rename, or folder-creation operations.
 Its mutation allowlist permits only session renewal and the existing upload flow.
 This is a client restriction, not a restriction on the browser credential's permissions.
+
+Some media types and watermark workflows are unsupported. See
+[API evidence and limitations](docs/API.md) for compatibility and validation details.
+
+## Development
+
+Run the test suite from the repository directory with your virtual environment active:
 
 ```powershell
 python -m unittest discover -s tests -v
 ```
-
-See [API evidence and limitations](docs/API.md) for tested operations and remaining
-validation. Browser login, identity, project/folder permission checks, and a full
-68.1 GB multipart upload with process-interruption recovery were live-tested on
-September 21, 2026. All 35 parts completed, the uploader exited successfully, and
-a subsequent server query returned `TRANSCODED`. A download-and-checksum comparison
-has not been performed. Do not treat this test as production certification.
-
-## Download proxies and browse media
-
-See [Transfer and inspection commands](docs/TRANSFERS.md) for profiles, proxy
-selection, resumable downloads, batch plans, reports, and read-only review tools.
-
-```powershell
-python -m framebridge --profile downloads whoami
-python -m framebridge --profile downloads renditions YOUR_ASSET_UUID
-python -m framebridge --profile downloads download YOUR_ASSET_UUID --resolution 360p --output .\downloads\proxy.mp4 --dry-run
-```
-
-Remove `--dry-run` to download the complete selected rendition. To test only
-1 MiB, add `--max-bytes 1048576`; a sample might not be playable. The downloader
-never falls back to the original. Originals require `--rendition original`.

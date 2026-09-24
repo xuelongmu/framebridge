@@ -143,8 +143,8 @@ prove that an asset has a usable video proxy: the tested BRAW upload was classif
 as audio by Frame.io. `versions` lists members of a version stack. Comments are
 read-only, with timestamp values in microseconds and parent IDs for replies.
 
-All new commands return JSON. `--json` also formats handled errors as JSON and
-captures compatibility-command output. Progress goes to stderr. Exit codes are
+Commands return JSON. `--json` also formats handled errors as JSON.
+Progress goes to stderr. Exit codes are
 0 for success, 1 for operation or per-file failure, 2 for invalid arguments, and
 130 for interruption. Credentials and signed URL fields are not included in
 reports; comments and filenames can still contain sensitive user content.
