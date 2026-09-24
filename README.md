@@ -3,7 +3,7 @@
 An unofficial Frame.io V4 CLI. The distribution, Python module, and installed
 command are all named `framebridge`.
 
-A Windows Python transfer and inspection CLI for the **private Frame.io V4 web GraphQL API**. This is
+A cross-platform Python transfer and inspection CLI for the **private Frame.io V4 web GraphQL API**. This is
 not Adobe's supported public V4 REST API. It uses your own browser login without
 Adobe Developer Console setup. Private operations can change without notice.
 
@@ -12,10 +12,12 @@ The previous API-key uploader is preserved in the local Git tag
 
 ## Install
 
-You need Windows, Python 3.10 or later, Node.js with `npx`, Chrome, and the
+You need Python 3.10 or later. Browser login also needs native Node.js with `npx`, Chrome, and the
 [Playwriter extension](https://github.com/remorses/playwriter).
 
-From this directory, run:
+### Windows (PowerShell)
+
+From the repository directory, run:
 
 ```powershell
 python -m venv .venv
@@ -23,12 +25,35 @@ python -m venv .venv
 python -m pip install -e .
 ```
 
+### Linux and macOS (Bash or Zsh)
+
+From the repository directory, run:
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -e .
+framebridge --help
+```
+
+### WSL (Ubuntu)
+
+Use a Linux virtual environment and keep credentials in the Linux filesystem.
+Follow [WSL installation and session transfer](docs/PLATFORMS.md#install-in-wsl-ubuntu)
+to reuse an authorized Windows login without printing its credentials.
+Windows and WSL have been tested; macOS has not been live-tested.
+
+### Existing installations
+
 After installation, use `framebridge login` or `python -m framebridge login`.
 If you installed the previous `frameio-web-uploader` distribution, uninstall it
 with `python -m pip uninstall frameio-web-uploader` before reinstalling this one.
 The repository directory is `D:\framebridge`. Credentials and upload journals
-move with the repository and remain in its `.state` directory. Update any saved
+for this existing Windows installation remain in its `.state` directory. Update any saved
 terminal shortcuts or scheduled tasks that reference the old directory.
+
+See [Cross-platform and WSL setup](docs/PLATFORMS.md)
+for state locations, credential protection, and the tested WSL installation.
 
 Keep your existing `.env`. If you do not have one, copy `.env.example` to `.env`.
 Set `FRAMEIO_PROJECT_ID` and optionally `FRAMEIO_FOLDER_ID` to your V4 resource
@@ -47,8 +72,9 @@ python -m framebridge list YOUR_FOLDER_UUID
 ```
 
 The login command opens and closes its own tab. It captures only the Frame.io
-session and Apollo client headers, then encrypts the session with Windows
-user-scoped DPAPI in `.state/session.dpapi`. It does not print the credentials.
+session and Apollo client headers. Windows encrypts the session with user-scoped
+DPAPI. Linux/macOS use an unencrypted owner-only `session.json` (0600) in a
+private directory (0700). It does not print the credentials.
 Close other Frame.io tabs during a long upload to reduce refresh-token rotation
 conflicts. If authorization fails, run `login` again; browser and uploader refresh
 are not synchronized. Do not run two state directories using the same session.
@@ -85,7 +111,9 @@ Folder IDs must belong to the specified V4 project. Missing mappings stop upload
 
 ## Resume safely
 
-Keep `.state/uploads.sqlite3`. Each completed part and external creation boundary
+Keep `uploads.sqlite3` in the selected profile's state directory; see
+[state locations](docs/PLATFORMS.md#state-and-credential-protection).
+Each completed part and external creation boundary
 is committed to SQLite. Rerunning the same command resumes the recorded asset.
 If the process loses a creation response, it stops with an **ambiguous outcome**
 instead of creating a duplicate. Reconcile the recorded path, batch ID, and asset

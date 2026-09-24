@@ -2,7 +2,8 @@
 
 Framebridge uses the private Frame.io V4 web API and your authorized browser
 session. These operations are unofficial and can break when the web app changes.
-Use Windows and the installation instructions in the README.
+Follow the installation instructions in the README and the
+[platform setup guide](PLATFORMS.md).
 
 ## Choose a login profile
 
@@ -15,8 +16,10 @@ framebridge --profile downloads whoami
 framebridge --profile downloads logout
 ```
 
-Each named profile has its own encrypted session and upload journal under
-`.state/profiles/NAME`. The default profile retains the original `.state` layout.
+Each named profile has its own session and upload journal under
+`STATE_ROOT/profiles/NAME`. Windows encrypts sessions with DPAPI; Linux/macOS
+protect unencrypted sessions with owner-only permissions. The existing Windows
+installation retains its original `.state` layout.
 Use `--state-dir PATH` to choose another state root. Do not share session files
 between profiles or concurrent processes.
 

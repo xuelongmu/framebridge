@@ -7,7 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from .api import Api
-from .storage import Journal, SessionStore, UploaderError, exclusive_lock
+from .storage import Journal, SessionStore, UploaderError, exclusive_lock, default_state_dir
 from .uploader import upload
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,9 +41,9 @@ def remaining_plan(data, contains=None):
 def legacy_main(argv=None):
     load_dotenv(ROOT / '.env')
     parser = argparse.ArgumentParser(description='Experimental Frame.io V4 web API uploader (not public V4 REST).')
-    parser.add_argument('--state-dir', type=Path, default=ROOT / '.state')
+    parser.add_argument('--state-dir', type=Path, default=default_state_dir(ROOT))
     sub = parser.add_subparsers(dest='command', required=True)
-    sub.add_parser('login', help='Capture your signed-in browser session into Windows DPAPI storage')
+    sub.add_parser('login', help='Capture your signed-in browser session into local credential storage')
     sub.add_parser('status', help='Read the authenticated user')
     project = sub.add_parser('project')
     project.add_argument('project_id')

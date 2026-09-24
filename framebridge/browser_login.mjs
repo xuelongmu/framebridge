@@ -1,4 +1,4 @@
-// Secrets stay in memory until the Python loopback receiver encrypts them.
+// Secrets stay in memory until the Python receiver saves platform-local storage.
 export async function login({ context, getCDPSession, endpoint, nonce }) {
   const page = await context.newPage();
   let captured;
@@ -25,8 +25,8 @@ export async function login({ context, getCDPSession, endpoint, nonce }) {
     const response = await fetch(endpoint, { method: 'POST', headers: { 'content-type': 'application/json', 'x-login-nonce': nonce },
       body: JSON.stringify({ access_token: access, refresh_token: decodeURIComponent(refresh), session_token: decodeURIComponent(session),
         client_name: captured['apollographql-client-name'], client_version: captured['apollographql-client-version'], expires_at: expires }) });
-    if (!response.ok) throw new Error('Local encrypted session receiver failed.');
-    console.log('Session captured into encrypted local storage.');
+    if (!response.ok) throw new Error('Local session receiver failed.');
+    console.log('Session captured into local credential storage.');
   } finally {
     page.off('request', listener);
     captured = undefined;

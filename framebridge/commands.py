@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .catalog import Catalog, public
 from .downloader import download, safe_name
-from .storage import Journal, SessionStore, UploaderError, atomic_write, exclusive_lock
+from .storage import Journal, SessionStore, UploaderError, atomic_write, exclusive_lock, default_state_dir, source_identity
 
 
 def profile_dir(root, name):
@@ -36,7 +36,7 @@ def report_write(path, value):
 def parser():
     from .cli import ROOT
     p = argparse.ArgumentParser(description='Framebridge: unofficial Frame.io V4 transfers and read-only inspection')
-    p.add_argument('--state-dir', type=Path, default=ROOT / '.state')
+    p.add_argument('--state-dir', type=Path, default=default_state_dir(ROOT))
     p.add_argument('--profile', default='default')
     p.add_argument('--json', action='store_true', help='One JSON result on stdout; progress on stderr')
     sub = p.add_subparsers(dest='command', required=True)
@@ -101,7 +101,7 @@ def main(argv=None):
             p.error('unrecognized arguments: ' + ' '.join(extra))
         if args.command == 'profiles':
             names = ['default'] + sorted(x.name for x in (args.state_dir/'profiles').glob('*') if x.is_dir())
-            emit([{'name':name,'logged_in':(profile_dir(args.state_dir,name)/'session.dpapi').exists()} for name in names])
+            emit([{'name':name,'logged_in':SessionStore(profile_dir(args.state_dir,name)/'session.dpapi').path.exists()} for name in names])
             return 0
         if getattr(args, 'report', None) and args.report.exists():
             raise UploaderError('Report already exists; choose a different path before starting transfers.')
@@ -226,7 +226,7 @@ def upload_batch(api,state,args):
     seen = set()
     for item in entries:
         path = Path(item['path']).resolve(strict=True)
-        pair = (str(path).casefold(),item['folder_id'])
+        pair = (source_identity(path),item['folder_id'])
         if pair in seen: raise UploaderError('Duplicate source/destination in manifest.')
         seen.add(pair)
         if not path.is_file() or path.stat().st_size<=0: raise UploaderError('Manifest includes an empty or non-file path.')

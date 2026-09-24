@@ -6,7 +6,7 @@ from pathlib import Path
 
 import requests
 
-from .storage import UploaderError
+from .storage import UploaderError, source_identity
 
 PART_MIN = 5 * 1024 * 1024
 READY = {'UPLOADED', 'TRANSCODED'}
@@ -51,7 +51,7 @@ def upload(api, journal, path, project_id, account_id, folder_id, *, experimenta
         raise UploaderError('Choose a nonempty regular file.')
     if mark[0] > PART_MIN and not experimental:
         raise UploaderError('Files larger than 5 MiB require --experimental-multipart (not live-validated).')
-    key = hashlib.sha256((str(path).casefold() + '|' + folder_id).encode()).hexdigest()
+    key = hashlib.sha256((source_identity(path) + '|' + folder_id).encode()).hexdigest()
     record = journal.get(key)
     if record:
         if record['fingerprint'] != mark or record['project_id'] != project_id:

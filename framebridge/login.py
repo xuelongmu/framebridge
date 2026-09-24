@@ -1,5 +1,6 @@
 """User-initiated capture through a nonce-protected loopback receiver."""
 import json
+import os
 import re
 import secrets
 import shutil
@@ -19,7 +20,7 @@ def session_id(output):
 
 
 def login(store, state_dir):
-    executable = shutil.which('npx.cmd') or shutil.which('npx')
+    executable = (shutil.which('npx.cmd') or shutil.which('npx')) if os.name == 'nt' else shutil.which('npx')
     if not executable:
         raise UploaderError('Install Node.js (including npx) and enable the Playwriter Chrome extension first.')
     nonce, saved = secrets.token_urlsafe(32), threading.Event()

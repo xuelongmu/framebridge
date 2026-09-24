@@ -43,6 +43,9 @@ credentials*.json
 *tokens*.json
 .state/
 *.dpapi
+session.json
+pending-session.json
+.session-*
 *.sqlite3
 *.sqlite3-journal
 login-bridge.js
