@@ -45,6 +45,35 @@ class Commands(unittest.TestCase):
                 with self.assertRaises(UploaderError): upload_one(self.api, root, args)
                 transfer.assert_not_called()
 
+    def test_large_upload_without_flag_and_legacy_flag_compatibility(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / 'large.bin'
+            with source.open('wb') as stream:
+                stream.truncate(6 * 1024 * 1024)
+            self.api.project.return_value = {'account': {'id': 'account'}, 'permissions': {'canCreateAsset': True}}
+            self.api.folder.return_value = {'permissions': {'canCreateChildren': True}}
+            for legacy in ([], ['--experimental-multipart']):
+                args = parser().parse_args(['upload', str(source), '--project', 'p', '--folder-id', 'f', *legacy])
+                with patch('framebridge.uploader.upload', return_value='asset') as transfer:
+                    self.assertEqual(upload_one(self.api, root, args)['asset_id'], 'asset')
+                    transfer.assert_called_once()
+
+    def test_large_parallel_batch_plan_without_experimental_flag(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source = root / 'large.bin'
+            with source.open('wb') as stream:
+                stream.truncate(6 * 1024 * 1024)
+            manifest = root / 'manifest.json'
+            manifest.write_text(json.dumps([{'path': str(source), 'folder_id': 'f'}]))
+            args = parser().parse_args(['upload-batch', str(manifest), '--project', 'p', '--workers', '2', '--part-workers', '2'])
+            self.api.project.return_value = {'permissions': {'canCreateAsset': True}}
+            self.api.folder.return_value = {'permissions': {'canCreateChildren': True}}
+            self.assertTrue(upload_batch(self.api, root, args)['dry_run'])
+            defaults = parser().parse_args(['upload-batch', str(manifest), '--project', 'p'])
+            self.assertEqual((defaults.workers, defaults.part_workers), (1, 1))
+
     def setUp(self):
         self.api = Mock()
         self.api.walk.return_value = [dict(id='asset', name='clip.mov', __typename='VideoAsset', relative_parent='')]

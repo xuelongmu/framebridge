@@ -97,10 +97,12 @@ def parser():
     s.add_argument('--folder-id', required=True, help='Existing remote parent folder')
     s.add_argument('--contents', action='store_true', help='Put contents directly in the destination without creating the local root name')
     s.add_argument('--skip-empty-files', action='store_true', help='Skip zero-byte files and include them in the skipped report')
+    s.add_argument('--workers', type=int, default=1, help='Concurrent file transfers, 1–16 (default: sequential)')
+    s.add_argument('--part-workers', type=int, default=1, help='Parallel parts per file, 1–4; requires workers > 1')
     s.add_argument('--existing-folders', choices=('error','reuse'), default='error')
     s.add_argument('--max-total-bytes', type=int, help='Required for --execute; cap for all planned source files')
     s.add_argument('--limit', type=int, default=10000)
-    s.add_argument('--experimental-multipart', action='store_true')
+    s.add_argument('--experimental-multipart', action='store_true', help='Deprecated compatibility option; S3 multipart is enabled by default.')
     s.add_argument('--execute', action='store_true')
     s.add_argument('--dry-run', action='store_true')
     s.add_argument('--report', type=Path)
@@ -121,16 +123,18 @@ def parser():
             s.add_argument('--limit', type=int, default=10000)
             s.add_argument('--max-total-bytes', type=int, required=True)
     s = sub.add_parser('upload-batch')
+    s.add_argument('--workers', type=int, default=1, help='Concurrent file transfers, 1–16 (default: sequential)')
+    s.add_argument('--part-workers', type=int, default=1, help='Parallel parts per file, 1–4; requires workers > 1')
     s.add_argument('manifest', type=Path, help='JSON list of {path, folder_id}; remote folders must already exist')
     s.add_argument('--project', required=True)
     s.add_argument('--execute', action='store_true')
-    s.add_argument('--experimental-multipart', action='store_true')
+    s.add_argument('--experimental-multipart', action='store_true', help='Deprecated compatibility option; S3 multipart is enabled by default.')
     s.add_argument('--report', type=Path)
     s = sub.add_parser('upload', help='Upload one file to an existing folder')
     s.add_argument('path', type=Path)
     s.add_argument('--project', default=os.getenv('FRAMEIO_PROJECT_ID'))
     s.add_argument('--folder-id', default=os.getenv('FRAMEIO_FOLDER_ID'))
-    s.add_argument('--experimental-multipart', action='store_true')
+    s.add_argument('--experimental-multipart', action='store_true', help='Deprecated compatibility option; S3 multipart is enabled by default.')
     return p
 
 
@@ -333,7 +337,8 @@ def folder_command(api, state, args):
                                execute=execute, contents=args.contents, existing_folders=args.existing_folders,
                                limit=args.limit, max_total_bytes=args.max_total_bytes,
                                experimental=args.experimental_multipart, progress=progress,
-                               skip_empty_files=args.skip_empty_files)
+                               skip_empty_files=args.skip_empty_files, workers=args.workers,
+                               part_workers=args.part_workers)
         finally:
             uploads.close()
     finally:
@@ -341,13 +346,11 @@ def folder_command(api, state, args):
 
 
 def upload_one(api, state, args):
-    from .uploader import upload, PART_MIN
+    from .uploader import upload
     if not args.project or not args.folder_id:
         raise UploaderError('Set --project and --folder-id, or FRAMEIO_PROJECT_ID and FRAMEIO_FOLDER_ID.')
     if not args.path.is_file() or args.path.stat().st_size <= 0:
         raise UploaderError('Choose a nonempty regular file.')
-    if args.path.stat().st_size > PART_MIN and not args.experimental_multipart:
-        raise UploaderError('Large files require --experimental-multipart.')
     project = api.project(args.project)
     if not project['permissions']['canCreateAsset']:
         raise UploaderError('Project uploads are not permitted.')
@@ -390,17 +393,29 @@ def download_folder(api,args):
 
 
 def upload_batch(api,state,args):
-    from .uploader import upload, PART_MIN
+    import requests
+    from .folders import name_key
+    from .uploader import upload
+    from .upload_pool import upload_many
+    workers = getattr(args, 'workers', 1)
+    part_workers = getattr(args, 'part_workers', 1)
+    if not 1 <= workers <= 16:
+        raise UploaderError('--workers must be between 1 and 16.')
+    if not 1 <= part_workers <= 4 or (part_workers > 1 and workers < 2):
+        raise UploaderError('--part-workers must be 1–4; parallel parts require --workers above 1.')
     entries = json.loads(args.manifest.read_text(encoding='utf-8-sig'))
     if not isinstance(entries,list) or not entries: raise UploaderError('Manifest must be a nonempty JSON list.')
-    seen = set()
+    seen, destination_names = set(), set()
     for item in entries:
         path = Path(item['path']).resolve(strict=True)
         pair = (source_identity(path),item['folder_id'])
         if pair in seen: raise UploaderError('Duplicate source/destination in manifest.')
         seen.add(pair)
+        destination_name = (item['folder_id'], name_key(path.name))
+        if workers > 1 and destination_name in destination_names:
+            raise UploaderError('Concurrent manifest entries target the same normalized destination name.')
+        destination_names.add(destination_name)
         if not path.is_file() or path.stat().st_size<=0: raise UploaderError('Manifest includes an empty or non-file path.')
-        if path.stat().st_size>PART_MIN and not args.experimental_multipart: raise UploaderError('Large files require --experimental-multipart.')
         item['path'] = str(path)
     project = api.project(args.project)
     if not project['permissions']['canCreateAsset']: raise UploaderError('Project uploads are not permitted.')
@@ -409,13 +424,38 @@ def upload_batch(api,state,args):
     if not args.execute: return {'dry_run':True,'plan':entries}
     journal = Journal(state/'uploads.sqlite3')
     completed, failed = [], []
+    metrics = {}
+    transport = requests.Session() if workers == 1 else None
+    if transport is not None:
+        transport.trust_env = False
     try:
+        if workers > 1:
+            jobs = [dict(item, project_id=args.project, account_id=project['account']['id']) for item in entries]
+            results = upload_many(api, journal, jobs, workers=workers,
+                                  experimental=args.experimental_multipart, metrics=metrics,
+                                  part_workers=part_workers)
+            try:
+                for item, asset, error in results:
+                    public_item = {k: v for k, v in item.items() if k not in {'project_id', 'account_id'}}
+                    if error is None:
+                        completed.append(dict(public_item, asset_id=asset))
+                    else:
+                        failed.append(dict(public_item, error=error))
+                    progress({'completed_files': len(completed), 'failed_files': len(failed),
+                              'total_files': len(entries)})
+            finally:
+                results.close()
+            return {'completed': completed, 'failed': failed, 'metrics': metrics}
         for item in entries:
             try:
-                asset = upload(api,journal,item['path'],args.project,project['account']['id'],item['folder_id'],experimental=args.experimental_multipart)
+                asset = upload(api,journal,item['path'],args.project,project['account']['id'],item['folder_id'],
+                               experimental=args.experimental_multipart, http=transport)
                 completed.append(dict(item,asset_id=asset))
                 progress({'completed_files':len(completed),'total_files':len(entries)})
             except (UploaderError,OSError) as e:
                 failed.append(dict(item,error=str(e) if isinstance(e,UploaderError) else 'Local I/O failure'))
-    finally: journal.close()
+    finally:
+        if transport is not None:
+            transport.close()
+        journal.close()
     return {'completed':completed,'failed':failed}

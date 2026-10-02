@@ -2,10 +2,15 @@
 import os
 from pathlib import Path
 import stat
+import time
 
-from .folders import directory_plan, make_directory, name_key, require_permission, validate_name, writable_folder
+import requests
+
+from .folders import (FolderCache, child_index, directory_plan, make_directory,
+                      matching_children, name_key, require_permission, validate_name, writable_folder)
 from .storage import UploaderError
-from .uploader import PART_MIN, fingerprint, upload, upload_key
+from .uploader import fingerprint, upload, upload_key
+from .upload_pool import upload_many
 
 
 def _linked(path):
@@ -69,7 +74,7 @@ def scan_tree(path, limit=10000, *, skip_empty_files=False):
 
 
 def _file_plan(api, journal, item, project_id, folder_id, children):
-    matches = [row for row in children if name_key(row['name']) == name_key(item['name'])]
+    matches = matching_children(children, item['name'])
     record = journal.get(upload_key(item['path'], folder_id))
     if record:
         if record['fingerprint'] != item['fingerprint'] or record['project_id'] != project_id:
@@ -102,8 +107,6 @@ def plan_tree(api, folders, uploads, path, project_id, parent_id, *, contents=Fa
     local = scan_tree(path, limit, skip_empty_files=skip_empty_files)
     if max_total_bytes is not None and local['total_bytes'] > max_total_bytes:
         raise UploaderError('Local tree exceeds --max-total-bytes; no upload started.')
-    if not experimental and any(item['bytes'] > PART_MIN for item in local['files']):
-        raise UploaderError('Tree contains files over 5 MiB; use --experimental-multipart.')
     project = api.project(project_id)
     require_permission(project, 'canCreateAsset', 'Project upload')
     writable_folder(api, parent_id, project_id)
@@ -112,7 +115,7 @@ def plan_tree(api, folders, uploads, path, project_id, parent_id, *, contents=Fa
     def children(folder_id):
         if folder_id not in listings:
             writable_folder(api, folder_id, project_id)
-            listings[folder_id] = list(api.children_assets(folder_id, limit))
+            listings[folder_id] = child_index(api.children_assets(folder_id, limit))
         return listings[folder_id]
 
     for directory in local['directories']:
@@ -161,7 +164,14 @@ def _check_source(root, item):
 
 def upload_tree(api, folders, uploads, path, project_id, parent_id, *, execute=False,
                 contents=False, existing_folders='error', limit=10000, max_total_bytes=None,
-                experimental=False, progress=None, skip_empty_files=False):
+                experimental=False, progress=None, skip_empty_files=False, workers=1, part_workers=1):
+    if type(workers) is not int or not 1 <= workers <= 16:
+        raise UploaderError('--workers must be between 1 and 16.')
+    if type(part_workers) is not int or not 1 <= part_workers <= 4:
+        raise UploaderError('--part-workers must be between 1 and 4.')
+    if part_workers > 1 and workers < 2:
+        raise UploaderError('--part-workers above 1 requires --workers above 1.')
+    started = time.monotonic()
     if execute and (max_total_bytes is None or max_total_bytes <= 0):
         raise UploaderError('Executing a tree upload requires a positive --max-total-bytes cap.')
     plan = plan_tree(api, folders, uploads, path, project_id, parent_id,
@@ -169,17 +179,20 @@ def upload_tree(api, folders, uploads, path, project_id, parent_id, *, execute=F
                      max_total_bytes=max_total_bytes, experimental=experimental,
                      skip_empty_files=skip_empty_files)
     if not execute:
-        return plan
+        return dict(plan, workers=workers, part_workers=part_workers)
+    metrics = {'planning_seconds': round(time.monotonic() - started, 3)}
+    folder_started = time.monotonic()
     root = Path(plan['root'])
     for item in plan['files']:
         _check_source(root, item)
     remote = {'.': parent_id} if contents else {}
     created, completed, failed = [], [], []
+    folder_cache = FolderCache(api, project_id, limit)
     for directory in plan['folders']:
         relative = directory['relative_path']
         destination = parent_id if relative == '.' else remote[directory['relative_parent']]
         result = make_directory(api, folders, project_id, destination, directory['name'],
-                                execute=True, existing=existing_folders, limit=limit)
+                                execute=True, existing=existing_folders, limit=limit, cache=folder_cache)
         if directory['folder_id'] and result['folder_id'] != directory['folder_id']:
             raise UploaderError('Destination folder mapping changed during execution.')
         remote[relative] = result['folder_id']
@@ -187,26 +200,58 @@ def upload_tree(api, folders, uploads, path, project_id, parent_id, *, execute=F
         if progress:
             progress({'resolved_folders': len(created), 'total_folders': plan['folder_count']})
     execution_listings = {}
-    for item in plan['files']:
-        destination = remote[item['relative_parent']]
-        try:
-            _check_source(root, item)
-            if destination not in execution_listings:
-                writable_folder(api, destination, project_id)
-                execution_listings[destination] = list(api.children_assets(destination, limit))
-            # Refresh once per destination during execution, including new folders.
-            # Other clients must not concurrently modify this tree: no remote name lock exists.
-            _file_plan(api, uploads, item, project_id, destination,
-                       execution_listings[destination])
-            asset_id = upload(api, uploads, item['path'], project_id, plan['account_id'],
-                              destination, experimental=experimental)
-            completed.append({'relative_path': item['relative_path'], 'asset_id': asset_id,
-                              'folder_id': destination})
-        except (UploaderError, OSError) as error:
-            failed.append({'relative_path': item['relative_path'],
-                           'error': str(error) if isinstance(error, UploaderError) else 'Local I/O failure'})
-        if progress:
-            progress({'completed_files': len(completed), 'failed_files': len(failed),
-                      'total_files': plan['file_count']})
+    metrics['folder_seconds'] = round(time.monotonic() - folder_started, 3)
+    metrics['folder_parent_listings'] = len(folder_cache.listings)
+
+    def jobs():
+        for item in plan['files']:
+            destination = remote[item['relative_parent']]
+            job = dict(item, folder_id=destination, project_id=project_id, account_id=plan['account_id'])
+            try:
+                _check_source(root, item)
+                if destination not in execution_listings:
+                    writable_folder(api, destination, project_id)
+                    execution_listings[destination] = child_index(api.children_assets(destination, limit))
+                # Refresh once per destination during execution, including new folders.
+                # Other clients must not concurrently modify this tree: no remote name lock exists.
+                _file_plan(api, uploads, item, project_id, destination, execution_listings[destination])
+            except (UploaderError, OSError) as error:
+                job['error'] = str(error) if isinstance(error, UploaderError) else 'Local I/O failure'
+            yield job
+
+    def sequential():
+        with requests.Session() as transport:
+            transport.trust_env = False
+            for job in jobs():
+                if job.get('error'):
+                    yield job, None, job['error']
+                    continue
+                try:
+                    asset_id = upload(api, uploads, job['path'], project_id, plan['account_id'],
+                                      job['folder_id'], experimental=experimental, http=transport)
+                    yield job, asset_id, None
+                except (UploaderError, OSError) as error:
+                    yield job, None, str(error) if isinstance(error, UploaderError) else 'Local I/O failure'
+
+    pool_metrics = {}
+    results = (sequential() if workers == 1 else
+               upload_many(api, uploads, jobs(), workers=workers, experimental=experimental,
+                           upload_fn=upload, check_source=lambda job: _check_source(root, job),
+                           metrics=pool_metrics, part_workers=part_workers))
+    try:
+        for item, asset_id, error in results:
+            if error is not None:
+                failed.append({'relative_path': item['relative_path'], 'error': error})
+            else:
+                completed.append({'relative_path': item['relative_path'], 'asset_id': asset_id,
+                                  'folder_id': item['folder_id']})
+            if progress:
+                progress({'completed_files': len(completed), 'failed_files': len(failed),
+                          'total_files': plan['file_count']})
+    finally:
+        results.close()
+    metrics.update(workers=workers, total_seconds=round(time.monotonic() - started, 3),
+                   upload_pool=pool_metrics)
     return {'dry_run': False, 'root': plan['root'], 'total_bytes': plan['total_bytes'],
-            'folders': created, 'completed': completed, 'failed': failed, 'skipped': plan['skipped']}
+            'folders': created, 'completed': completed, 'failed': failed, 'skipped': plan['skipped'],
+            'metrics': metrics}

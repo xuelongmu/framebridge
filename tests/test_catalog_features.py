@@ -19,6 +19,57 @@ class CatalogFeatures(unittest.TestCase):
         self.api = Catalog(store)
         self.api.call = Mock()
 
+    def folder_page(self, ids, total, end, more, folder='root'):
+        return {'asset': {'id': folder, 'matchingChildren': {
+            'nodes': [{'id': id} for id in ids], 'totalCount': total,
+            'pageInfo': {'endOffset': end, 'hasNextPage': more}}}}
+
+    def test_children_include_folders_with_offset_pagination(self):
+        self.api.call.side_effect = [self.folder_page(['folder', 'file'], 3, 2, True),
+                                     self.folder_page(['empty-folder'], 3, 3, False)]
+        self.assertEqual([row['id'] for row in self.api.children('root', first=2)],
+                         ['folder', 'file', 'empty-folder'])
+        first, second = self.api.call.call_args_list
+        self.assertIn('matchingChildren', first.args[1])
+        self.assertIn('flattenFolders: false', first.args[1])
+        self.assertEqual(first.args[2]['page'], {'first': 2, 'afterOffset': 0, 'mode': 'OFFSET'})
+        self.assertEqual(second.args[2]['page']['afterOffset'], 2)
+
+    def test_recursive_walk_uses_complete_child_listing(self):
+        def call(name, query, variables):
+            if name == 'FolderChildren':
+                id = variables['id']
+                return self.folder_page(['folder', 'file'] if id == 'root' else ['nested'],
+                                        2 if id == 'root' else 1, 2 if id == 'root' else 1, False, id)
+            return {'assets': [asset(id, parent='folder' if id == 'nested' else 'root',
+                                     type='FolderAsset' if id == 'folder' else 'UnsupportedAsset')
+                               for id in variables['ids']]}
+        self.api.call.side_effect = call
+        self.assertEqual([row['id'] for row in self.api.walk('root', recursive=True)],
+                         ['folder', 'file', 'nested'])
+
+    def test_folder_listing_refuses_changed_counts_duplicates_and_gaps(self):
+        first = self.folder_page(['folder'], 2, 1, True)
+        for second in (self.folder_page(['file'], 3, 2, True),
+                       self.folder_page(['folder'], 2, 2, False),
+                       self.folder_page([], 2, 1, False)):
+            self.api.call.side_effect = [first, second]
+            with self.assertRaises(UploaderError): list(self.api.children('root', first=1))
+
+    def test_folder_listing_refuses_stalled_offset_and_missing_folder(self):
+        for page in (self.folder_page(['folder'], 2, 0, True),
+                     self.folder_page([], 2, 1, True), {'asset': None},
+                     self.folder_page([], 0, 0, False, 'other')):
+            self.api.call.side_effect = None
+            self.api.call.return_value = page
+            with self.assertRaises(UploaderError): list(self.api.children('root'))
+
+    def test_empty_folder_and_page_size_validation(self):
+        self.api.call.return_value = self.folder_page([], 0, 0, False)
+        self.assertEqual(list(self.api.children('root')), [])
+        for size in (0, 101, True):
+            with self.assertRaises(UploaderError): list(self.api.children('root', size))
+
     def test_batch_hydration_preserves_requested_order(self):
         self.api.call.return_value = {'assets': [asset('b'), asset('a')]}
         self.assertEqual([x['id'] for x in self.api.assets(['a', 'b'])], ['a', 'b'])

@@ -14,6 +14,40 @@ def name_key(name):
     return unicodedata.normalize('NFC', name).casefold()
 
 
+def child_index(children):
+    """Keep all normalized-name matches so duplicates remain conflicts."""
+    index = {}
+    for child in children:
+        index.setdefault(name_key(child['name']), []).append(child)
+    return index
+
+
+def matching_children(children, name):
+    if isinstance(children, dict):
+        return children.get(name_key(name), [])
+    return [row for row in children if name_key(row['name']) == name_key(name)]
+
+
+class FolderCache:
+    """Run-scoped execution snapshot; independent destination writers are unsupported."""
+    def __init__(self, api, project_id, limit):
+        self.api, self.project_id, self.limit = api, project_id, limit
+        self.project = api.project(project_id)
+        self.listings = {}
+
+    def children(self, parent_id):
+        if parent_id not in self.listings:
+            writable_folder(self.api, parent_id, self.project_id)
+            self.listings[parent_id] = child_index(self.api.children_assets(parent_id, self.limit))
+        return self.listings[parent_id]
+
+    def remember(self, parent_id, folder):
+        index = self.children(parent_id)
+        matches = index.setdefault(name_key(folder['name']), [])
+        if not any(row['id'] == folder['id'] for row in matches):
+            matches.append(folder)
+
+
 def validate_name(name):
     if not isinstance(name, str) or not name.strip() or name in {'.', '..'} or any(
             c in '/\\' or ord(c) < 32 for c in name):
@@ -56,7 +90,7 @@ def directory_plan(api, journal, project_id, parent_id, name, *, existing='error
         return {'action': 'resume', 'folder_id': folder['id'], 'name': name,
                 'parent_id': parent_id, 'operation_id': key}
     children = list(api.children_assets(parent_id, limit)) if children is None else children
-    matches = [row for row in children if name_key(row['name']) == name_key(name)]
+    matches = matching_children(children, name)
     if matches:
         if (existing != 'reuse' or len(matches) != 1 or matches[0]['__typename'] != 'FolderAsset'
                 or matches[0]['name'] != name):
@@ -69,13 +103,17 @@ def directory_plan(api, journal, project_id, parent_id, name, *, existing='error
 
 
 def make_directory(api, journal, project_id, parent_id, name, *, execute=False,
-                   existing='error', adopt_id=None, limit=10000):
+                   existing='error', adopt_id=None, limit=10000, cache=None):
     validate_name(name)
     if limit <= 0:
         raise UploaderError('Folder inspection limit must be positive.')
-    project = api.project(project_id)
+    if cache is not None and (cache.api is not api or cache.project_id != project_id):
+        raise UploaderError('Folder cache belongs to a different operation.')
+    project = cache.project if cache is not None else api.project(project_id)
     require_permission(project, 'canCreateAsset', 'Project folder creation')
-    writable_folder(api, parent_id, project_id)
+    children = cache.children(parent_id) if cache is not None else None
+    if cache is None:
+        writable_folder(api, parent_id, project_id)
     key = operation_key('mkdir', project_id, parent_id, name)
     previous = journal.get(key)
     if adopt_id:
@@ -87,7 +125,7 @@ def make_directory(api, journal, project_id, parent_id, name, *, execute=False,
                 'parent_id': parent_id, 'operation_id': key}
     else:
         plan = directory_plan(api, journal, project_id, parent_id, name,
-                              existing=existing, limit=limit)
+                              existing=existing, limit=limit, children=children)
     if not execute:
         return dict(plan, dry_run=True)
     if plan['action'] in {'create', 'adopt', 'reuse'}:
@@ -104,6 +142,8 @@ def make_directory(api, journal, project_id, parent_id, name, *, execute=False,
             journal.put(key, record)
         folder = api.folder(plan['folder_id'], project_id)
         check_folder_identity(folder, project_id, parent_id, name)
+        if cache is not None:
+            cache.remember(parent_id, folder)
         record['phase'] = 'complete'
         journal.put(key, record)
     elif previous and previous.get('phase') != 'complete':

@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from framebridge.commands import folder_command, main, parser
-from framebridge.folders import make_directory, move, operation_key
+from framebridge.folders import FolderCache, child_index, make_directory, move, operation_key
 from framebridge.storage import Journal, OperationJournal, UploaderError
 from framebridge.tree_upload import scan_tree, upload_tree
 from framebridge.uploader import fingerprint, upload_key
@@ -103,6 +103,35 @@ class FolderOperations(OperationFixture):
         self.assertEqual(self.mkdir()['action'], 'create')
         self.assertEqual(self.api.created, [])
         self.assertIsNone(self.journal.get(operation_key('mkdir', 'p', 'left', 'new')))
+
+    def test_sibling_creation_lists_parent_once_and_remembers_names(self):
+        with patch.object(self.api, 'children_assets', wraps=self.api.children_assets) as listing:
+            cache = FolderCache(self.api, 'p', 10000)
+            for index in range(100):
+                make_directory(self.api, self.journal, 'p', 'right', f'folder-{index}',
+                               execute=True, cache=cache)
+            self.assertEqual(listing.call_count, 1)
+            self.assertEqual(len(cache.children('right')), 100)
+        self.assertEqual(len(self.api.created), 100)
+
+    def test_cached_duplicate_normalized_names_remain_conflicts(self):
+        self.api.add('one', 'folder', 'right')
+        self.api.add('two', 'FOLDER', 'right')
+        cache = FolderCache(self.api, 'p', 10000)
+        self.assertEqual(len(cache.children('right')['folder']), 2)
+        with self.assertRaisesRegex(UploaderError, 'conflict'):
+            make_directory(self.api, self.journal, 'p', 'right', 'folder',
+                           execute=True, existing='reuse', cache=cache)
+
+    def test_cached_creation_still_verifies_response_and_retains_ambiguity(self):
+        cache = FolderCache(self.api, 'p', 10000)
+        self.api.lose_create = True
+        with self.assertRaises(UploaderError):
+            make_directory(self.api, self.journal, 'p', 'right', 'x', execute=True, cache=cache)
+        self.api.lose_create = False
+        with self.assertRaisesRegex(UploaderError, 'ambiguous'):
+            make_directory(self.api, self.journal, 'p', 'right', 'x', execute=True, cache=cache)
+        self.assertEqual(len(self.api.created), 1)
 
     def test_mkdir_resumes_known_id(self):
         first = self.mkdir(execute=True)
@@ -286,7 +315,7 @@ class TreeUpload(OperationFixture):
         record = journal.get(key)
         if record:
             return record['asset_id']
-        item = api.add('file-' + str(len(self.sent)), Path(path).name, folder,
+        item = api.add('file-' + key, Path(path).name, folder,
                        type='UnsupportedAsset', filesize=Path(path).stat().st_size)
         journal.put(key, {'asset_id': item['id'], 'project_id': project, 'folder_id': folder,
                           'fingerprint': fingerprint(Path(path)), 'phase': 'complete'})
@@ -312,6 +341,21 @@ class TreeUpload(OperationFixture):
         self.assertEqual(len(self.api.created), 4)
         self.assertEqual(len(self.sent), 2)
 
+    def test_concurrent_tree_execution_and_repeat(self):
+        with patch('framebridge.tree_upload.upload', side_effect=self.fake_upload):
+            first = self.tree(execute=True, max_total_bytes=10, workers=2)
+            second = self.tree(execute=True, max_total_bytes=10, workers=2)
+        self.assertEqual(first['failed'], [])
+        self.assertEqual(second['failed'], [])
+        self.assertEqual(len(self.sent), 2)
+        self.assertEqual(len(self.api.created), 4)
+        self.assertLessEqual(first['metrics']['upload_pool']['peak_active'], 2)
+
+    def test_invalid_workers_fail_before_remote_writes(self):
+        with self.assertRaisesRegex(UploaderError, 'workers'):
+            self.tree(execute=True, max_total_bytes=10, workers=0)
+        self.assertEqual(self.api.created, [])
+
     def test_tree_contents_and_explicit_reuse(self):
         self.api.add('existing-a', 'a', 'right')
         with self.assertRaises(UploaderError): self.tree(contents=True)
@@ -326,7 +370,9 @@ class TreeUpload(OperationFixture):
         with self.assertRaises(UploaderError): self.tree(max_total_bytes=9, execute=True)
         with self.assertRaises(UploaderError): self.tree(limit=2)
         with (self.source / 'large.bin').open('wb') as stream: stream.truncate(6 * 1024 * 1024)
-        with self.assertRaisesRegex(UploaderError, 'multipart'): self.tree()
+        plan = self.tree()
+        self.assertEqual(plan['total_bytes'], 6 * 1024 * 1024 + 10)
+        with self.assertRaises(UploaderError): self.tree(max_total_bytes=10, execute=True)
         self.assertEqual(self.api.created, [])
 
     def test_tree_empty_file_fails_before_remote_writes(self):

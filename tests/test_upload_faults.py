@@ -97,14 +97,14 @@ class UploadStress(unittest.TestCase):
             if part == 1: raise KeyboardInterrupt()
             return f'http://127.0.0.1:{server.server_port}/{part}'
         self.api.part_url.side_effect = interrupted_url
-        with self.assertRaises(KeyboardInterrupt): self.run_upload(experimental=True)
+        with self.assertRaises(KeyboardInterrupt): self.run_upload()
         self.assertEqual(set(received), {0})
         self.journal.close()
         self.journal = Journal(self.root / 'journal.sqlite3')
         self.addCleanup(self.journal.close)
         self.api.part_url.side_effect = lambda asset, part: f'http://127.0.0.1:{server.server_port}/{part}'
         self.api.status.side_effect = ['UPLOADING', 'TRANSCODED']
-        self.run_upload(experimental=True)
+        self.run_upload()
         combined = received[0] + received[1]
         self.assertEqual(hashlib.sha256(combined).digest(), hashlib.sha256(original).digest())
         self.assertEqual(self.api.create_asset.call_count, 1)
