@@ -137,28 +137,32 @@ Create a JSON manifest with explicit local paths and existing destination folder
 ```
 
 ```powershell
-framebridge upload-batch .\manifest.json --project PROJECT_UUID --experimental-multipart
+framebridge upload-batch .\manifest.json --project PROJECT_UUID
 ```
 
 This validates sources and permissions and prints a plan. Add `--execute` to
-upload sequentially using the existing recovery journal. Files over 5 MiB require
-`--experimental-multipart`. Rerun the manifest to resume; completed journal entries
+upload sequentially using the existing recovery journal. S3 multipart is enabled
+by default. Rerun the manifest to resume; completed journal entries
 are rechecked against remote status, size, project, and folder before being skipped.
 No folders are created and no local tree is mapped implicitly.
+
+Add `--workers 4` to opt into bounded concurrent transfers. See
+[Concurrency and interrupted uploads](#concurrency-and-interrupted-uploads).
+Concurrent manifests must use distinct normalized destination names within each
+folder, even when the source paths differ.
 
 ## Upload a local folder hierarchy
 
 ```sh
 framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID
-framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID --execute --max-total-bytes 1000000000 --experimental-multipart --report ./reports/tree-upload.json
+framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID --execute --max-total-bytes 1000000000 --report ./reports/tree-upload.json
 ```
 
 The default is a preview of every directory and file, their relative paths,
 planned destination IDs when known, skipped links, and total source bytes.
 Execution requires `--execute` and a positive `--max-total-bytes`. `--dry-run`
 overrides `--execute`. The cap includes files already completed, not just bytes
-that need retransmission. Files over 5 MiB also require
-`--experimental-multipart`.
+that need retransmission. S3 multipart does not require a separate flag.
 
 By default, uploading `delivery` creates a remote `delivery` folder under the
 given parent. Nested folders and empty directories retain their names and
@@ -201,6 +205,104 @@ once for every file; concurrent external changes cannot be made transactional.
 File failures retain their state and appear in `failed`; other planned files can
 continue. A folder-creation failure stops the run before entering that unresolved
 branch. No automatic cleanup or rollback deletes partially created folders.
+
+## Concurrency and interrupted uploads
+
+For `upload-folder` and `upload-batch`, `--workers` accepts 1–16 and defaults to 1.
+Start with a small value and measure your workload:
+
+```sh
+framebridge --profile downloads upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID --execute --max-total-bytes 1000000000 --limit 50000 --skip-empty-files --workers 4
+```
+
+The source-size cap includes completed files. Choose a cap appropriate to the
+whole tree, not just the remaining transfer. Folder creation stays sequential,
+but execution lists each parent once and updates a normalized-name index after
+verified creation. Duplicate normalized names remain conflicts. File execution
+refreshes its own destination snapshot. Other clients must not modify this tree.
+
+With workers above 1, a coordinator owns all API calls, token renewal, and SQLite
+writes. Workers reuse storage connections and use one hashing slot. Files waiting
+for processing release their transfer slots; the coordinator batches status reads
+and limits active plus pending work to twice the worker count. Final completion
+still requires a source hash check and a fresh remote identity/size/location check.
+Authentication renewal failure stops the shared queue rather than retrying it for
+every file. Retryable reads use jittered backoff and honor `Retry-After`. Storage
+workers share a cooldown after HTTP 429 or 503. Creation mutations are not replayed.
+
+For parallel parts, also add `--part-workers 2` (range 1–4). This
+requires `--workers` above 1. A global semaphore
+limits simultaneous storage PUTs to `--workers`; nested part concurrency does not
+multiply that limit. Each part uses its own source handle. Up to four contiguous
+part URLs are fetched just before scheduling, checked for expected part numbers,
+and kept only in memory. A retry requests a fresh URL. Noncontiguous resume gaps
+use individual URL reads. One transfer batch is still created per file; grouped
+asset creation and multi-file batch completion remain disabled.
+
+The default remains one file worker and one part worker. The deprecated
+`--experimental-multipart` option is accepted but has no effect. Supported storage
+is limited to the S3 workflow; other backends are refused. Live validation covers
+one account, so broader account and file-type coverage remains a limitation, not
+a guarantee. The underlying private API can change.
+
+To resume an interrupted operation:
+
+1. Stop the old process before restarting. The profile lock prevents two local
+   processes from using the same state at once.
+2. Keep the original profile and state directory, including `uploads.sqlite3`
+   and `operations.sqlite3`. `session.json` alone is not an upload journal.
+3. Leave source paths and contents, project, parent folder, and tree options
+   unchanged. Do not rename or move remote items belonging to the operation.
+4. Rerun the command. You can lower `--workers`, including returning to 1;
+   sequential and concurrent modes use the same journal format. If using
+   `--report`, choose a new output path because reports never overwrite files.
+
+Known folders and assets are reused. Recorded successful parts are not resent;
+a partly transmitted or unacknowledged part is sent again in full. Completed
+files are rehashed and checked remotely before being skipped. Files awaiting
+processing are checked using the same asset ID. If a creation response was lost,
+automatic replay stops for reconciliation instead of creating a duplicate.
+Folder ambiguity can be reconciled with the existing `mkdir --adopt-id` flow;
+ambiguous file/batch creation still requires manual reconciliation.
+
+Ctrl+C stops new scheduling and signals hash/transfer workers. An outstanding
+socket operation may take until its timeout to exit. A hard process kill can lose
+an unacknowledged response; the journal retains the pre-request intent. Copying
+journals to a different machine or changing operating systems is not automatic
+resume migration: stored source paths and filesystem identities can differ.
+
+Concurrent reports include worker/session counts, method-call counts, owner
+API/journal time, elapsed time, and storage attempts/body bytes read. Body bytes
+include retries and are not a server receipt; summed storage time can exceed wall
+time because transfers overlap. Folder reports include planning/folder timings
+and execution parent-listing counts. No signed URLs or credentials are recorded.
+
+These paths are covered by offline concurrency, real loopback HTTP, cancellation,
+failed-part, journal-reopening, and sequential-resume tests. An October 2 live
+three-file synthetic test also passed forced process interruption, concurrent
+resume with unchanged asset IDs, a zero-byte repeat, and full-original SHA-256
+round trips. A subsequent 2.075 GB ZIP test received 35 parts and verified two
+concurrent PUTs, multi-URL reads, hard process interruption, and resume into the
+same asset. Its multipart ETag and full-original SHA-256 matched the local source;
+a repeat created no assets and sent zero bytes. Defaults remain
+sequential. Both tests used dedicated test folders and did not refresh credentials;
+the uploaded fixtures remain available.
+
+An October 2, 2026 matched benchmark uploaded the same 2,075,169,730-byte ZIP to
+two fresh assets on the same account and machine. Both received 35 parts and
+sent exactly the source size with no storage retries. The existing sequential
+upload path took 108.3 seconds (19.2 MB/s); the coordinated path with
+`--workers 2 --part-workers 2` took 58.0 seconds (35.8 MB/s): 1.87 times the
+throughput and 46.4% less elapsed time. MB/s uses decimal bytes. Timings include
+asset creation, source hashing, all PUTs, server readiness, final source checks,
+and batch completion. Folder setup and the independent ETag comparison are
+excluded. Both remote multipart ETags matched. This is one ordered pair
+(sequential first), not a repeated benchmark or a guarantee for other networks,
+accounts, file sizes, or multi-file jobs. Default settings remain sequential.
+
+Folder listing uses `matchingChildren` to include both files and folders. The old
+default listing query silently omitted subfolders. Two-item pagination, recursive
+traversal, and existing-folder reuse were verified live with the corrected query.
 
 ## Create a folder
 

@@ -97,17 +97,20 @@ Frame.io resource IDs. Use `framebridge COMMAND --help` for command options.
 ## Upload a file
 
 ```powershell
-framebridge upload ./clip.mov --project PROJECT_UUID --folder-id FOLDER_UUID --experimental-multipart
+framebridge upload ./clip.mov --project PROJECT_UUID --folder-id FOLDER_UUID
 ```
 
-The destination folder must already exist. Uploads are sequential, and files
-over 5 MiB require `--experimental-multipart`.
+The destination folder must already exist. Single-file uploads are sequential.
+S3 multipart uploads are enabled by default; `--experimental-multipart` remains
+accepted as a deprecated compatibility option and has no effect. Other storage
+backends are refused. Live validation covers one account, not every account or
+storage configuration; this client uses a private API that can change.
 
 ## Upload a folder hierarchy
 
 ```sh
 framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID
-framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID --execute --max-total-bytes 1000000000 --experimental-multipart
+framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID --execute --max-total-bytes 1000000000
 ```
 
 The first command previews the tree. The second creates `delivery` and its nested
@@ -117,6 +120,17 @@ Use `--contents` to omit the local root folder. Existing folders require
 `--existing-folders reuse` unless their IDs are already in this profile's journal.
 Existing files are never overwritten or silently accepted based on their names.
 Keep both `uploads.sqlite3` and `operations.sqlite3` to resume safely.
+
+For larger jobs, add `--workers 4` to `upload-folder` or `upload-batch` to overlap
+file transfers and server-completion checks. The default is `--workers 1`.
+Add `--skip-empty-files` to folder uploads to report and skip zero-byte files.
+`--part-workers 2` also overlaps parts within a file; it requires
+`--workers` above 1. The worker count caps all
+simultaneous storage PUTs, not workers multiplied by parts. These concurrent paths
+have offline HTTP and recovery coverage. Live tests passed concurrent file
+interruption/resume and checksum round trips. A 2.075 GB ZIP also passed 35-part
+parallel upload, hard interruption/resume, multipart ETag and full-original
+SHA-256 comparisons, and a zero-byte repeat without duplicate assets.
 
 See [Recursive uploads and folder operations](docs/TRANSFERS.md#upload-a-local-folder-hierarchy)
 for conflicts, limits, and recovery.

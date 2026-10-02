@@ -52,6 +52,12 @@ Nodes contain `id` and `index`; `pageInfo` contains `endCursor` and
 `folderAssets(page, query)` root. Do not replace that implementation merely
 because this newer document has the same operation name.
 
+October 2 correction: a mixed live fixture showed that both default listing
+forms omitted child folders. The client now uses the observed `matchingChildren`
+field with `flattenFolders: false` and bounded offset pagination. This path was
+verified to return both folders and files. See [API evidence](API.md#folder-listing-must-include-folders)
+for the invariant and regression coverage.
+
 ### Comments and versions need broader validation
 
 The web comments document requests page 1 with a page size of 10,000. This does

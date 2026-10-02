@@ -23,7 +23,7 @@ public V4 REST endpoint in our tests.
 | Operation | Discovery evidence | Implementation status |
 | --- | --- | --- |
 | User, project, folder permissions | Read operations verified | Reduced selections live-tested September 21; account is under project.workspace; permissions require FolderAsset fragment |
-| Folder cursor pagination | Filtered and general listing verified | General listing plus batched metadata hydration; 100 IDs per hydration call |
+| Folder listing | All-child offset pagination verified on October 2 | `matchingChildren` includes folders and files; metadata hydration remains bounded to 100 IDs |
 | CreateTransferBatch | Tiny standalone upload verified | One batch per file |
 | AddAssetsToTransferBatch | Tiny standalone upload verified | One existing destination folder per asset |
 | Signed S3 PUT | Tiny single-part upload reached TRANSCODED | Streamed upload; bounded same-part retries |
@@ -69,6 +69,45 @@ Default S3 uploads complete automatically. `FinalizeUpload` failed for our test
 asset and belongs to another storage flow, so this client does not call it.
 The client polls for UPLOADED or TRANSCODED, then marks the batch SUCCEEDED.
 
+Opt-in concurrent folder/manifest uploads batch status reads for up to 100 asset
+IDs, then perform the existing per-asset verification before completion. One
+coordinator owns the API client and journal writes. Opt-in parallel parts
+use a shared transfer cap and request windows of up to four signed URLs, checking
+their part numbers before sending data. On the verified staged-object S3 flow,
+the signed query uses `x-amz-meta-part_number` (one-based), not native S3
+`partNumber`. The client accepts either field, rejects conflicting or repeated
+values, and checks each number against the requested zero-based offset. Missing
+numbers in multi-URL windows are refused. Regression coverage is in
+`test_staged_part_metadata_numbers`.
+Each file still has its own
+transfer batch, and ambiguous creations are never automatically replayed.
+
+On October 2, a three-file synthetic upload (11,542,736 bytes) was force-stopped
+after a successful part was durably recorded. Concurrent resume retained all
+three asset IDs, and a subsequent repeat sent zero upload bytes. Full original
+downloads matched local SHA-256 hashes. Batched status reads succeeded live.
+All three files received a single part. A subsequent 2,075,169,730-byte ZIP test
+received 35 parts and verified multi-URL windows with two concurrent PUTs. After
+a hard process exit with one acknowledged part and another in flight, resume
+retained the asset ID, skipped the acknowledged part, and completed the remaining
+34 parts. The original's 35-part ETag matched the local calculation, and a full
+original download matched the source SHA-256. A repeat sent zero bytes and made
+no new assets or batches. Part count
+is server-assigned; do not infer a fixed part-size threshold from these fixtures.
+
+### Folder listing must include folders
+
+The legacy `folderAssets` query and `FolderAsset.assets` without an explicit
+asset-type filter returned files but omitted child folders in the live fixture.
+Do not use those default results for recursion or folder-name conflict checks.
+The client uses `FolderAsset.matchingChildren(filters: [], flattenFolders: false,
+page: {mode: OFFSET, afterOffset: ..., first: ...}, sortBys: [])` instead.
+Its offset pagination was verified with two-item pages against a mixed folder.
+Recursive traversal returned all three subfolders and three files, and an empty
+journal discovered an existing folder for reuse. Tests enforce count continuity,
+unique IDs, advancing offsets, and complete traversal. These checks detect some
+concurrent changes, not an atomic snapshot; independent writers remain unsupported.
+
 Completion now also requires matching asset size, project, and parent folder.
 The private `UploadEvidence` query selects `id`, `name`, `status`, `filesize`,
 `project { id }`, and `parent { id }`. It does not request signed URLs or require
@@ -100,12 +139,15 @@ bytes matching the source; new fault tests cover remote metadata mismatch,
 unavailable/deleted assets, source mutation with preserved size and timestamp,
 short request consumption, and verification retry without duplicate creation.
 
-`--experimental-multipart` remains required. Before promoting multipart, complete
-a live multi-part original-download hash comparison, repeat with interruption and
-resume under the new checks, and validate representative file types and accounts
-on the supported S3 workflow. A small single-part success is not enough to remove
-the flag. Other storage backends remain unsupported. The private API can change
-even after these criteria pass.
+S3 multipart is enabled by default following the October 2 ZIP test, which passes
+the live multipart original-download hash, interruption/resume, parallel-transfer,
+and duplicate-free repeat gates. The deprecated `--experimental-multipart` flag
+and Python `experimental` keyword remain accepted as no-ops for compatibility.
+Concurrency still requires explicit worker settings; CLI defaults remain
+sequential. Broader account and file-type coverage remains a known limitation:
+one ZIP on one account does not establish universal compatibility. Other storage
+backends remain unsupported. Promotion does not change private-API risk, source
+checks, journal recovery, permission checks, or refusal of ambiguous creations.
 
 ## Folder and move contracts
 
