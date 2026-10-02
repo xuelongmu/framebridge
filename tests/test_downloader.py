@@ -10,7 +10,7 @@ import requests
 from framebridge.api import Api
 from framebridge.catalog import Catalog, public
 from framebridge.commands import profile_dir
-from framebridge.downloader import download, safe_name
+from framebridge.downloader import download, safe_name, check_url
 from framebridge.storage import UploaderError
 
 
@@ -100,6 +100,12 @@ class Downloads(unittest.TestCase):
         self.api.rendition.return_value['downloadUrl']='https://evil.example/file'
         with self.assertRaisesRegex(UploaderError,'host'): self.run_download()
         self.http.get.assert_not_called()
+    def test_original_host_and_deceptive_hosts(self):
+        check_url('https://assets.frame.io/original.wav')
+        for url in ('http://assets.frame.io/file', 'https://assets.frame.io.evil.example/file',
+                    'https://evil.assets.frame.io/file', 'https://user@assets.frame.io/file',
+                    'https://assets.frame.io:444/file'):
+            with self.subTest(url=url), self.assertRaises(UploaderError): check_url(url)
     def test_profiles_and_names(self):
         with self.assertRaises(UploaderError): profile_dir(Path('root'),'../bad')
         self.assertEqual(profile_dir(Path('root'),'default'),Path('root'))

@@ -19,7 +19,38 @@ If your shell blocks activation, use `.\.venv\Scripts\python.exe -m pip install 
 and `.\.venv\Scripts\python.exe -m framebridge --help` directly. You do not need
 to change your system's script execution policy.
 
-## Install on Linux or macOS
+## macOS and Linux setup with uv
+
+Install
+[uv using Astral's instructions](https://docs.astral.sh/uv/getting-started/installation/).
+From your source checkout in Bash or Zsh, run:
+
+```sh
+uv venv --python 3.12 .venv
+. .venv/bin/activate
+uv pip install -e .
+framebridge --help
+python -m unittest discover -s tests -q
+```
+
+Python 3.12 is an example supported version; Framebridge requires Python 3.10 or
+later. uv can download the requested Python version if it is not installed.
+Choose either this workflow or the standard venv instructions for a new
+environment; do not recreate an environment you want to keep.
+
+Use `uv pip install`, not `python -m pip`, in an unseeded uv environment: pip is
+not installed there by default. Reactivate the environment in a new terminal
+with `. .venv/bin/activate`, or run `.venv/bin/framebridge` directly.
+This editable installation does not require `uv sync` or a `uv.lock` file.
+See [uv virtual environments](https://docs.astral.sh/uv/pip/environments/).
+
+For browser login, install native Node.js/npm and the Playwriter Chrome
+extension on the same operating system as the CLI. Run `framebridge login`.
+The Windows Chrome extension is not automatically reachable by a WSL Node.js
+installation. For WSL, use the explicit Windows-to-WSL session copy below.
+Native Linux/macOS browser capture has not been live-tested.
+
+### Alternative: standard venv
 
 From the source directory:
 
@@ -31,11 +62,22 @@ framebridge --help
 python -m unittest discover -s tests -q
 ```
 
-For browser login, install native Node.js/npm and the Playwriter Chrome
-extension on the same operating system as the CLI. Run `framebridge login`.
-The Windows Chrome extension is not automatically reachable by a WSL Node.js
-installation. For WSL, use the explicit Windows-to-WSL session copy below.
-Native Linux/macOS browser capture has not been live-tested.
+### WSL with uv
+
+For WSL, run the Linux build of uv inside Ubuntu. To install a snapshot from a
+Windows checkout into a new Linux environment instead:
+
+```sh
+uv venv --python 3.12 "$HOME/.venvs/framebridge"
+. "$HOME/.venvs/framebridge/bin/activate"
+uv pip install /mnt/d/framebridge
+framebridge --help
+```
+
+Replace the source path as needed. To update that snapshot, run
+`uv pip install --reinstall /mnt/d/framebridge` in the activated environment.
+The session-transfer steps below apply unchanged; keep credential storage in
+the Linux home filesystem. uv does not replace Node.js or Playwriter for login.
 
 ## Install in WSL (Ubuntu)
 

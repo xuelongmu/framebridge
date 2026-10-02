@@ -1,22 +1,58 @@
 """Read-only navigation and media catalog, based on observed web operations."""
+from itertools import islice
+
 from .api import Api
 from .storage import UploaderError
 
 MEDIA = '''query Media($ids: [ID!]!) { assets(assetIds: $ids) {
-id name status __typename isWatermarked
-... on VideoAsset { forensicallyWatermarked media { id duration fps timecode
+id name status __typename isWatermarked filesize project { id } parent { id }
+... on VideoAsset { forensicallyWatermarked media { id duration fps timecode mimeType frames
 original { key downloadUrl filesizeInBytes codec }
 videoTranscodes { key downloadUrl encodeStatus filesizeInBytes width height codec }
 metadata { id originalWidth originalHeight } } }
-... on AudioAsset { media { id original { key downloadUrl filesizeInBytes codec }
+... on AudioAsset { media { id duration fps mimeType original { key downloadUrl filesizeInBytes codec }
 audioTranscodes { key downloadUrl encodeStatus } } }
+... on ImageAsset { media { id mimeType original { key downloadUrl filesizeInBytes codec }
+metadata { id originalWidth originalHeight hasAlpha } } }
+... on DocumentAsset { media { id mimeType pageCount original { key downloadUrl filesizeInBytes codec } } }
+... on UnsupportedAsset { media { id mimeType original { key downloadUrl filesizeInBytes codec } } }
 } }'''
+
+ASSET_FIELDS = '''id name status filesize __typename project { id } parent { id }
+... on FolderAsset { restricted isRestrictedDescendant }
+... on VersionStackAsset { versions { id name status __typename } }'''
+
+FIELD_VALUES = '''query FieldValues($id: ID!, $page: PageInput!) { asset(assetId: $id) {
+id ... on Collectible { fieldValuesNew(page: $page) {
+nodes { id fieldType isValueTrimmed fieldDefinition { id } value { __typename
+... on LongTextFieldValue { longText } ... on TextFieldValue { text }
+... on NumberFieldValue { number } ... on RatingFieldValue { rating }
+... on SelectFieldValue { selectedOptions } ... on SelectMultiFieldValue { multiSelectedOptions }
+... on ToggleFieldValue { toggle } ... on DateFieldValue { date }
+... on UsersFieldValue { selectedMembers { id displayName } }
+... on UserSingleFieldValue { singleSelectedMember { id displayName } }
+... on UserMultiFieldValue { multiSelectedMembers { id displayName } }
+} } pageInfo { endCursor hasNextPage } } } } }'''
+
+FIELD_DEFINITIONS = '''query FieldDefinitions($id: ID!, $page: PageInput!) {
+project(projectId: $id) { fieldDefinitions(page: $page) {
+nodes { id name fieldType isSystemField configuration {
+... on SelectFieldConfiguration { options { id displayName } } } }
+pageInfo { endCursor hasNextPage } } } }'''
+
+TRANSCRIPT_FIELDS = '''localeTranscriptions(page: $page) {
+nodes { id name displayName encodeStatus locale source lastEditedAt
+vtt { downloadUrl } srt { downloadUrl } text { downloadUrl } }
+pageInfo { endCursor hasNextPage } }'''
+TRANSCRIPTS = '''query Transcripts($id: ID!, $page: PageInput!) { asset(assetId: $id) {
+id __typename ... on AudioAsset { ''' + TRANSCRIPT_FIELDS + ''' }
+... on VideoAsset { ''' + TRANSCRIPT_FIELDS + ''' } } }'''
 
 
 class Catalog(Api):
     def media(self, asset_id):
         items = self.call('Media', MEDIA, {'ids': [asset_id]})['assets']
-        if len(items) != 1 or not items[0]:
+        if len(items) != 1 or not items[0] or items[0].get('id') != asset_id:
             raise UploaderError('Asset is missing or inaccessible.')
         return items[0]
 
@@ -46,14 +82,106 @@ class Catalog(Api):
         return dict(chosen, asset_id=asset['id'], asset_name=asset['name'], media_id=media['id'])
 
     def asset(self, asset_id):
-        q = '''query InspectAsset($id: ID!) { asset(assetId: $id) {
-id name status __typename project { id } parent { id }
-... on VersionStackAsset { versions { id name status __typename } }
-} }'''
+        q = 'query InspectAsset($id: ID!) { asset(assetId: $id) { ' + ASSET_FIELDS + ' } }'
         asset = self.call('InspectAsset', q, {'id': asset_id}).get('asset')
-        if not asset:
+        if not asset or asset.get('id') != asset_id:
             raise UploaderError('Asset is missing or inaccessible.')
         return asset
+
+    def assets(self, asset_ids):
+        """Hydrate at most 100 IDs per call; preserve listing order and fail on gaps."""
+        ids = list(asset_ids)
+        if not ids or len(ids) > 100 or len(set(ids)) != len(ids):
+            raise UploaderError('Asset hydration requires 1–100 distinct IDs.')
+        q = 'query HydrateAssets($ids: [ID!]!) { assets(assetIds: $ids) { ' + ASSET_FIELDS + ' } }'
+        rows = self.call('HydrateAssets', q, {'ids': ids}).get('assets') or []
+        by_id = {row['id']: row for row in rows if row and row.get('id')}
+        if len(rows) != len(ids) or set(by_id) != set(ids):
+            raise UploaderError('Asset listing changed or contains inaccessible entries; results are incomplete.')
+        return [by_id[asset_id] for asset_id in ids]
+
+    def children_assets(self, folder_id, limit=10000):
+        if limit < 0:
+            raise UploaderError('Traversal budget must be nonnegative.')
+        children, seen = iter(self.children(folder_id)), set()
+        while True:
+            batch = list(islice(children, min(100, limit - len(seen) + 1)))
+            if not batch:
+                return
+            ids = [row['id'] for row in batch]
+            if len(seen) + len(ids) > limit:
+                raise UploaderError('Traversal limit reached; results are incomplete.')
+            if seen.intersection(ids) or len(set(ids)) != len(ids):
+                raise UploaderError('Folder pagination repeated assets; results are incomplete.')
+            seen.update(ids)
+            for item in self.assets(ids):
+                if (item.get('parent') or {}).get('id') != folder_id:
+                    raise UploaderError('Asset moved during listing; rerun to obtain a consistent plan.')
+                yield item
+
+    def inspect(self, asset_id):
+        asset = self.media(asset_id)
+        # Folders and version stacks are not Collectible objects.
+        if asset['__typename'] not in {'AudioAsset', 'VideoAsset', 'ImageAsset',
+                                      'DocumentAsset', 'UnsupportedAsset', 'InteractiveAsset', 'ModelAsset'}:
+            return asset
+        values = list(self._pages('FieldValues', FIELD_VALUES, {'id': asset_id},
+                                 lambda d: d['asset']['fieldValuesNew']))
+        project_id = (asset.get('project') or {}).get('id')
+        if not project_id:
+            raise UploaderError('Asset project is unavailable; metadata inspection is incomplete.')
+        definitions = {item['id']: item for item in self._pages(
+            'FieldDefinitions', FIELD_DEFINITIONS, {'id': project_id},
+            lambda d: d['project']['fieldDefinitions'])}
+        asset['fields'] = [dict(value, definition=definitions.get(value['fieldDefinition']['id']))
+                           for value in values]
+        media = asset.get('media') or {}
+        asset['ready_video_proxy_keys'] = [r['key'] for r in media.get('videoTranscodes', [])
+                                           if r.get('encodeStatus') == 'SUCCESS']
+        asset['has_ready_video_proxy'] = bool(asset['ready_video_proxy_keys'])
+        return asset
+
+    def folder_stats(self, folder_id):
+        q = '''query GetFolderStats($folderId: ID!) { folder(folderId: $folderId) {
+id folderStats { countFiles countFolders sizeFiles sizeFolders } } }'''
+        folder = self.call('GetFolderStats', q, {'folderId': folder_id}).get('folder')
+        if not folder or not folder.get('folderStats'):
+            raise UploaderError('Folder statistics are missing or inaccessible.')
+        return dict(folder, scope='server_reported',
+                    note='Counts and sizes are server aggregates, not a verified recursive transfer manifest.')
+
+    def permissions(self, asset_id):
+        asset = self.asset(asset_id)
+        project_id = (asset.get('project') or {}).get('id')
+        if not project_id:
+            raise UploaderError('Asset project is missing or inaccessible.')
+        project = self.project(project_id)
+        containing = asset
+        seen = set()
+        while containing['__typename'] != 'FolderAsset':
+            parent = (containing.get('parent') or {}).get('id')
+            if not parent or parent in seen or len(seen) >= 256:
+                raise UploaderError('Cannot resolve the containing folder safely.')
+            seen.add(parent)
+            containing = self.asset(parent)
+        folder = self.folder(containing['id'], project_id)
+        checks = {f'project.{key}': value for key, value in project.get('permissions', {}).items()}
+        checks.update({f'folder.{key}': value for key, value in folder.get('permissions', {}).items()})
+        return {'asset_id': asset_id, 'project_id': project_id, 'folder_id': folder['id'],
+                'permissions': checks, 'denied': [key for key, value in checks.items() if value is False],
+                'restricted': folder.get('restricted'),
+                'is_restricted_descendant': folder.get('isRestrictedDescendant'),
+                'note': 'Permission snapshots explain preflight failures; the server remains authoritative.'}
+
+    def transcripts(self, asset_id):
+        def extract(data):
+            asset = data.get('asset')
+            if not asset:
+                raise UploaderError('Asset is missing or inaccessible.')
+            if asset['__typename'] not in {'AudioAsset', 'VideoAsset'}:
+                raise UploaderError('Transcripts are supported only for audio and video assets.')
+            return asset['localeTranscriptions']
+        return list(self._pages('Transcripts', TRANSCRIPTS, {'id': asset_id}, extract))
 
     def _pages(self, operation, query, variables, extract):
         cursor, seen = None, set()
@@ -90,17 +218,19 @@ nodes { id name rootAssetId } pageInfo { endCursor hasNextPage } } } } }'''
     def walk(self, folder_id, recursive=False, limit=10000):
         if limit <= 0:
             raise UploaderError('--limit must be positive.')
-        pending, seen, count = [(folder_id, '')], set(), 0
+        pending, seen, assets_seen, count = [(folder_id, '')], set(), set(), 0
         while pending:
             folder, prefix = pending.pop()
             if folder in seen:
-                continue
+                raise UploaderError('Folder traversal repeated a folder; results are incomplete.')
             seen.add(folder)
-            for node in self.children(folder):
+            for item in self.children_assets(folder, limit - count):
+                if item['id'] in assets_seen:
+                    raise UploaderError('Traversal repeated an asset; the tree may have changed.')
+                assets_seen.add(item['id'])
                 count += 1
                 if count > limit:
                     raise UploaderError('Traversal limit reached; narrow the folder scope or increase --limit.')
-                item = self.asset(node['id'])
                 item['relative_parent'] = prefix
                 yield item
                 if recursive and item['__typename'] == 'FolderAsset':

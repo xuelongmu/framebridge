@@ -12,6 +12,7 @@ import requests
 from .storage import UploaderError, atomic_write, exclusive_lock
 
 CHUNK = 4 * 1024 * 1024
+DOWNLOAD_HOSTS = {'stream-download.frame.io', 'assets.frame.io'}
 
 
 def safe_name(name):
@@ -23,7 +24,7 @@ def safe_name(name):
 
 def check_url(url):
     p = urlparse(url)
-    if p.scheme != 'https' or p.hostname != 'stream-download.frame.io' or p.username or p.password or p.port not in (None, 443):
+    if p.scheme != 'https' or p.hostname not in DOWNLOAD_HOSTS or p.username or p.password or p.port not in (None, 443):
         raise UploaderError('Unverified download host; no request sent.')
 
 

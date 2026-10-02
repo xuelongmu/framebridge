@@ -12,9 +12,15 @@ public REST API. Private operations can change without notice.
 - Resumable uploads and proxy downloads.
 - Account, workspace, project, and folder browsing, with folder-scoped search.
 - Batch transfer plans, named login profiles, and JSON reports.
-- Read-only media metadata, comments, and version inspection.
+- Recursive folder uploads, including nested and empty folders.
+- Planned folder creation and same-project asset/folder moves.
+- Batched browsing, custom-field inspection, folder statistics, and permission diagnostics.
+- Existing transcript export, comments, and version inspection.
+- Explicit original ETag comparison without a full-original download.
 
-There are no remote delete, move, rename, or folder-creation commands.
+There are no remote delete or rename commands. Folder creation, moves, transcript
+export, and ETag verification are new in this working checkout; they have not
+been published as a release.
 
 ## Install
 
@@ -31,9 +37,21 @@ python -m venv .venv
 python -m pip install -e .
 ```
 
-### Linux and macOS (Bash or Zsh)
+### macOS and Linux with uv (Bash or Zsh)
 
-From the repository directory, run:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run
+from the repository directory:
+
+```sh
+uv venv --python 3.12 .venv
+. .venv/bin/activate
+uv pip install -e .
+framebridge --help
+```
+
+See [macOS and Linux setup with uv](docs/PLATFORMS.md#macos-and-linux-setup-with-uv) for details.
+
+#### Alternative: standard venv
 
 ```sh
 python3 -m venv .venv
@@ -85,6 +103,35 @@ framebridge upload ./clip.mov --project PROJECT_UUID --folder-id FOLDER_UUID --e
 The destination folder must already exist. Uploads are sequential, and files
 over 5 MiB require `--experimental-multipart`.
 
+## Upload a folder hierarchy
+
+```sh
+framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID
+framebridge upload-folder ./delivery --project PROJECT_UUID --folder-id PARENT_FOLDER_UUID --execute --max-total-bytes 1000000000 --experimental-multipart
+```
+
+The first command previews the tree. The second creates `delivery` and its nested
+folders, then uploads files to their matching destinations, with a 1 GB source
+size cap. Empty folders are preserved; symlinks and Windows junctions are skipped.
+Use `--contents` to omit the local root folder. Existing folders require
+`--existing-folders reuse` unless their IDs are already in this profile's journal.
+Existing files are never overwritten or silently accepted based on their names.
+Keep both `uploads.sqlite3` and `operations.sqlite3` to resume safely.
+
+See [Recursive uploads and folder operations](docs/TRANSFERS.md#upload-a-local-folder-hierarchy)
+for conflicts, limits, and recovery.
+
+## Create or move folders
+
+```sh
+framebridge mkdir NewFolder --project PROJECT_UUID --parent-id PARENT_FOLDER_UUID
+framebridge move ASSET_OR_FOLDER_UUID --project PROJECT_UUID --folder-id DESTINATION_FOLDER_UUID
+```
+
+Both commands preview by default. Add `--execute` after reviewing the result.
+Moves are same-project only, never merge or overwrite, and refuse restricted
+folder paths or subtrees that could change access.
+
 ## Download a proxy
 
 ```sh
@@ -123,11 +170,45 @@ is committed to SQLite. Rerunning the same command resumes the recorded asset.
 If the process loses a creation response, it stops with an **ambiguous outcome**
 instead of creating a duplicate. Reconcile the recorded path, batch ID, and asset
 ID with Frame.io before changing the journal; there is no automatic reset command.
-A changed file (size or modification time) is rejected on resume. Already complete
-journal entries are skipped locally, not revalidated remotely.
+A changed file is rejected on resume. New uploads record SHA-256 hashes of the
+source and planned parts, check streamed bytes, and recheck the source afterward.
+Before marking completion, Framebridge checks remote status, file size, project,
+and destination folder. Completed entries are revalidated before they are skipped.
 
 For downloads, keep the `.part` and `.framebridge.json` files beside the output
 and rerun the same command. Existing unrelated files are never overwritten.
+
+## Verify a transfer
+
+Check remote status and compare the reported size with a local file:
+
+```sh
+framebridge verify ASSET_UUID --local-file ./clip.mov
+```
+
+Size agreement is not a checksum match. To download the original and compare its
+SHA-256, explicitly choose a separate destination and a byte cap:
+
+```sh
+framebridge verify ASSET_UUID --local-file ./clip.mov --download-original-to ./downloads/original.mov --max-download-bytes 1000000000 --report ./reports/verification.json
+```
+
+This example permits an original up to 1 GB. The command downloads the whole
+original, never a proxy, and reports `checksum_verified: true` only after the
+comparison succeeds. See [Verification details](docs/TRANSFERS.md#verify-upload-integrity).
+
+To compare a compatible original ETag without downloading the original:
+
+```sh
+framebridge verify ASSET_UUID --local-file ./clip.mov --etag
+```
+
+This reads the entire local source and consumes two remote body bytes, probing
+the original before and after hashing. Multipart comparison assumes the
+Framebridge part layout; optionally assert its count with `--part-count 35`.
+A match reports `etag_match: true` with `verification_level: multipart_etag_match`
+or `etag_md5_match`. It keeps `checksum_verified: false` to distinguish this
+conditional MD5 evidence from a full-original SHA-256 comparison.
 
 ## Security and limitations
 
@@ -135,7 +216,8 @@ and rerun the same command. Existing unrelated files are never overwritten.
 delivery manifests, and logs. Keep credentials and media outside source control.
 DPAPI protects against offline casual inspection, not malicious software running
 as your Windows user. Tokens and signed S3 URLs must never appear in Git or logs.
-Its mutation allowlist permits only session renewal and the existing upload flow.
+Its mutation allowlist permits session renewal, the upload flow, folder creation,
+and the single-asset move document. CLI preflight restricts moves to one project.
 This is a client restriction, not a restriction on the browser credential's permissions.
 
 Some media types and watermark workflows are unsupported. See

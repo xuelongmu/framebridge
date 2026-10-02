@@ -35,8 +35,14 @@ class UploadStress(unittest.TestCase):
         self.api.create_batch.return_value = 'batch'
         self.api.create_asset.return_value = {'id': 'asset', 'totalPartCount': 1}
         self.api.status.return_value = 'TRANSCODED'
+        self.api.upload_evidence.side_effect = lambda asset: {'id':asset, 'status':'TRANSCODED',
+            'filesize':self.file.stat().st_size, 'project':{'id':'project'}, 'parent':{'id':'folder'}}
         self.http = Mock()
         self.http.put.return_value.status_code = 200
+        def consume(*args, **kwargs):
+            while kwargs['data'].read(65536): pass
+            return self.http.put.return_value
+        self.http.put.side_effect = consume
 
     def run_upload(self, **kwargs):
         return upload(self.api, self.journal, self.file, 'project', 'account', 'folder',

@@ -16,13 +16,17 @@ ENDPOINT = 'https://api.frame.io/graphql'
 ME = 'query Me { me { id email name } }'
 PROJECT = '''query Project($id: ID!) { project(projectId: $id) {
 id name rootAssetId workspaceId workspace { account { id } }
-permissions { canCreateAsset canDownloadAsset canShare canEditUserPermissions }
+permissions { canCreateAsset canDownloadAsset canMoveAsset canDownloadTranscription canShare canEditUserPermissions }
 } }'''
 FOLDER = '''query Folder($id: ID!) { asset(assetId: $id) {
 id name __typename project { id } parent { id }
-... on FolderAsset { permissions { canCreateChildren canViewChildren } }
+... on FolderAsset { permissions { canCreateChildren canViewChildren canMoveChildren canDownloadChildren }
+restricted isRestrictedDescendant }
 } }'''
 ASSET = 'query Asset($id: ID!) { asset(assetId: $id) { id name status } }'
+UPLOAD_EVIDENCE = '''query UploadEvidence($id: ID!) { asset(assetId: $id) {
+id name status filesize project { id } parent { id }
+} }'''
 REFRESH = '''mutation RefreshAccessToken($input: CycleRefreshTokenInput!) {
 cycleRefreshToken(input: $input) { token { accessToken refreshToken expiration sessionToken } } }'''
 
@@ -38,7 +42,8 @@ class Api:
         allowed = {'RefreshAccessToken': REFRESH,
                    'CreateTransferBatch': CREATE_BATCH,
                    'AddAssetsToTransferBatch': ADD_ASSET,
-                   'UpdateTransferBatches': COMPLETE_BATCH}
+                   'UpdateTransferBatches': COMPLETE_BATCH,
+                   'CreateFolder': CREATE_FOLDER, 'MoveAssets': MOVE_ASSETS}
         if not read and query != allowed.get(name):
             raise UploaderError('Mutation is not permitted by this client.')
         if read and re.search(r'\bmutation\b', query):
@@ -108,14 +113,14 @@ class Api:
 
     def project(self, project_id):
         project = self.call('Project', PROJECT, {'id': project_id}).get('project')
-        if not project:
+        if not project or project.get('id') != project_id:
             raise UploaderError('Project is not accessible.')
         project['account'] = project['workspace']['account']
         return project
 
     def folder(self, folder_id, project_id):
         folder = self.call('Folder', FOLDER, {'id': folder_id}).get('asset')
-        if not folder or folder.get('__typename') != 'FolderAsset':
+        if not folder or folder.get('id') != folder_id or folder.get('__typename') != 'FolderAsset':
             raise UploaderError('Destination is not an accessible folder.')
         if (folder.get('project') or {}).get('id') != project_id:
             raise UploaderError('Destination folder belongs to a different project.')
@@ -142,6 +147,12 @@ folderAssets(page: $page, query: $query) { nodes { id index } pageInfo { endCurs
         if not asset:
             raise UploaderError('Upload asset is unavailable; reconcile before retrying.')
         return asset['status']
+
+    def upload_evidence(self, asset_id):
+        asset = self.call('UploadEvidence', UPLOAD_EVIDENCE, {'id': asset_id}).get('asset')
+        if not asset or asset.get('id') != asset_id:
+            raise UploaderError('Upload asset is unavailable; reconcile before retrying.')
+        return asset
 
     def create_batch(self, account_id, name):
         query = CREATE_BATCH
@@ -172,6 +183,24 @@ asset(assetId: $assetId) { uploadUrls(limit: $limit, offset: $offset) } }'''
         if not data['updateTransferBatches']['successful']:
             raise UploaderError('Transfer bookkeeping failed; rerun to reconcile the existing asset.')
 
+    def create_folder(self, parent_id, name):
+        data = self.call('CreateFolder', CREATE_FOLDER,
+                         {'input': {'parentId': parent_id, 'name': name, 'restricted': False}})
+        asset = (data.get('createFolder') or {}).get('asset')
+        if not asset or not asset.get('id'):
+            raise UploaderError('Folder creation returned no identity; reconcile before retrying.')
+        return asset
+
+    def move_asset(self, asset_id, parent_id):
+        # One asset per request: no partially successful bulk moves to reconcile.
+        data = self.call('MoveAssets', MOVE_ASSETS,
+                         {'input': {'assetIds': [asset_id], 'parentId': parent_id,
+                                    'movePrivateCommentsToNewWorkspace': False}})
+        assets = (data.get('moveAssets') or {}).get('assets') or []
+        if len(assets) != 1 or not assets[0] or assets[0].get('id') != asset_id:
+            raise UploaderError('Move returned no matching asset; reconcile its parent before retrying.')
+        return assets[0]
+
 
 CREATE_BATCH = '''mutation CreateTransferBatch($input: CreateTransferBatchInput!) {
 createTransferBatch(input: $input) { transferBatch { id } } }'''
@@ -179,3 +208,8 @@ ADD_ASSET = '''mutation AddAssetsToTransferBatch($input: AddAssetsToTransferBatc
 addAssetsToTransferBatch(input: $input) { assetItems { asset { id totalPartCount } } } }'''
 COMPLETE_BATCH = '''mutation UpdateTransferBatches($input: UpdateTransferBatchesInput!) {
 updateTransferBatches(input: $input) { successful } }'''
+
+CREATE_FOLDER = '''mutation CreateFolder($input: CreateFolderInput!) {
+createFolder(input: $input) { asset { id name __typename project { id } parent { id } } } }'''
+MOVE_ASSETS = '''mutation MoveAssets($input: MoveAssetsInput!) {
+moveAssets(input: $input) { assets { id name __typename project { id } parent { id } } } }'''

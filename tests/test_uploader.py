@@ -85,7 +85,15 @@ class Tests(unittest.TestCase):
         api.create_asset.return_value = {'id': 'asset', 'totalPartCount': 1}
         api.part_url.return_value = 'https://example.amazonaws.com/upload'
         api.status.side_effect = ['CREATED', 'TRANSCODED']
-        http.put.side_effect = [requests.ConnectionError('secret'), Mock(status_code=200)]
+        api.upload_evidence.return_value = {'id':'asset','status':'TRANSCODED','filesize':5,
+                                           'project':{'id':'p'},'parent':{'id':'f'}}
+        attempts = []
+        def consume(*args, **kwargs):
+            attempts.append(True)
+            if len(attempts) == 1: raise requests.ConnectionError('secret')
+            while kwargs['data'].read(65536): pass
+            return Mock(status_code=200)
+        http.put.side_effect = consume
         self.assertEqual(upload(api, journal, path, 'p', 'a', 'f', http=http, sleep=lambda _: None), 'asset')
         self.assertEqual(upload(api, journal, path, 'p', 'a', 'f', http=http), 'asset')
         self.assertEqual(api.create_asset.call_count, 1)

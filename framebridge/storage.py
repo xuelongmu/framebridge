@@ -150,20 +150,27 @@ class SessionStore:
 
 class Journal:
     """Persist each external-write boundary, with explicit ambiguous states."""
+    table = 'uploads'
+
     def __init__(self, path):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
         self.db.execute('PRAGMA synchronous=FULL')
-        self.db.execute('CREATE TABLE IF NOT EXISTS uploads (key TEXT PRIMARY KEY, record TEXT NOT NULL)')
+        self.db.execute(f'CREATE TABLE IF NOT EXISTS {self.table} (key TEXT PRIMARY KEY, record TEXT NOT NULL)')
         self.db.commit()
 
     def get(self, key):
-        row = self.db.execute('SELECT record FROM uploads WHERE key=?', (key,)).fetchone()
+        row = self.db.execute(f'SELECT record FROM {self.table} WHERE key=?', (key,)).fetchone()
         return json.loads(row[0]) if row else None
 
     def put(self, key, record):
         with self.db:
-            self.db.execute('INSERT OR REPLACE INTO uploads VALUES (?, ?)', (key, json.dumps(record)))
+            self.db.execute(f'INSERT OR REPLACE INTO {self.table} VALUES (?, ?)', (key, json.dumps(record)))
 
     def close(self):
         self.db.close()
+
+
+class OperationJournal(Journal):
+    """Separate durable intents for folder creation, tree uploads, and moves."""
+    table = 'operations'

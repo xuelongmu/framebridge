@@ -1,0 +1,1418 @@
+{
+  "evidence_date": "2026-10-01",
+  "scope": "partial-observed-web-client-operations",
+  "operations": [
+    {
+      "name": "Me",
+      "signature": "query Me",
+      "variables": [],
+      "results": [
+        {
+          "name": "Me",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountsForRouting",
+      "signature": "query GetAccountsForRouting($first: NonNegativeInt = 500, $signup: Boolean)",
+      "variables": [
+        "first"
+      ],
+      "results": [
+        {
+          "name": "GetAccountsForRouting",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetHasSearchEnabled",
+      "signature": "query GetHasSearchEnabled($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetHasSearchEnabled",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetTransferBatchesForAccount",
+      "signature": "query GetTransferBatchesForAccount($accountId: ID!, $pagination: PaginationInput, $assetPagination: PageInput!)",
+      "variables": [
+        "accountId",
+        "pagination",
+        "assetPagination"
+      ],
+      "results": [
+        {
+          "name": "GetTransferBatchesForAccount",
+          "status": 200,
+          "keys": [
+            "transferBatchesForAccount"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountLock",
+      "signature": "query GetAccountLock($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountLock",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAllAccountsForPrimaryNavPanel",
+      "signature": "query GetAllAccountsForPrimaryNavPanel",
+      "variables": [],
+      "results": [
+        {
+          "name": "GetAllAccountsForPrimaryNavPanel",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetWorkspacesBasic",
+      "signature": "query GetWorkspacesBasic($accountId: ID!, $page: PageInput!)",
+      "variables": [
+        "accountId",
+        "page"
+      ],
+      "results": [
+        {
+          "name": "GetWorkspacesBasic",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountLevelMetadataEnabled",
+      "signature": "query GetAccountLevelMetadataEnabled($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountLevelMetadataEnabled",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAvailableCustomFieldCount",
+      "signature": "query GetAvailableCustomFieldCount($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAvailableCustomFieldCount",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetCanManageBillingPermission",
+      "signature": "query GetCanManageBillingPermission($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetCanManageBillingPermission",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountFioVersionMigrationStartedAt",
+      "signature": "query GetAccountFioVersionMigrationStartedAt($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountFioVersionMigrationStartedAt",
+          "status": 200,
+          "keys": [
+            "fioVersionMigration"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountFioVersionMigrationStatus",
+      "signature": "query GetAccountFioVersionMigrationStatus($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountFioVersionMigrationStatus",
+          "status": 200,
+          "keys": [
+            "fioVersionMigration"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountWelcomeProjectId",
+      "signature": "query GetAccountWelcomeProjectId($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountWelcomeProjectId",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountGroupTraits",
+      "signature": "query GetAccountGroupTraits($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountGroupTraits",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetNotificationGroups",
+      "signature": "query GetNotificationGroups($accountId: ID!, $page: PageInput!, $unreadOnly: Boolean)",
+      "variables": [
+        "accountId",
+        "page"
+      ],
+      "results": [
+        {
+          "name": "GetNotificationGroups",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetWhatsNewFeedLastUpdatedTime",
+      "signature": "query GetWhatsNewFeedLastUpdatedTime($locale: SupportedLocale)",
+      "variables": [
+        "locale"
+      ],
+      "results": [
+        {
+          "name": "GetWhatsNewFeedLastUpdatedTime",
+          "status": 200,
+          "keys": [
+            "whatsNewFeed"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFeatureGateSuggestions",
+      "signature": "query GetFeatureGateSuggestions($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetFeatureGateSuggestions",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFeatureFlags",
+      "signature": "query GetFeatureFlags($accountId: ID!, $flagNames: [String!]!)",
+      "variables": [
+        "accountId",
+        "flagNames"
+      ],
+      "results": [
+        {
+          "name": "GetFeatureFlags",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccessRequests",
+      "signature": "query GetAccessRequests($accountId: ID!, $page: PageInput!)",
+      "variables": [
+        "accountId",
+        "page"
+      ],
+      "results": [
+        {
+          "name": "GetAccessRequests",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetUnopenedNotificationGroupsCount",
+      "signature": "query GetUnopenedNotificationGroupsCount($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetUnopenedNotificationGroupsCount",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetResourceControlPolicies",
+      "signature": "query GetResourceControlPolicies($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetResourceControlPolicies",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetSubscriptionId",
+      "signature": "query GetSubscriptionId($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetSubscriptionId",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountUsage",
+      "signature": "query GetAccountUsage($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountUsage",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountInfoForWorkspaces",
+      "signature": "query GetAccountInfoForWorkspaces($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": []
+    },
+    {
+      "name": "GetTrial",
+      "signature": "query GetTrial($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetTrial",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetWorkspacesForNavigation",
+      "signature": "query GetWorkspacesForNavigation($accountId: ID!, $page: PageInput!, $filter: WorkspaceFilterInput, $order: WorkspaceOrderInput)",
+      "variables": [
+        "accountId",
+        "page",
+        "filter",
+        "order"
+      ],
+      "results": []
+    },
+    {
+      "name": "GetAllProjects",
+      "signature": "query GetAllProjects($accountId: ID!, $page: PageInput!, $filter: AccountProjectFilter, $orders: [ProjectOrderInput!])",
+      "variables": [
+        "accountId",
+        "filter",
+        "orders",
+        "page"
+      ],
+      "results": []
+    },
+    {
+      "name": "UpsertGdprConsentCategories",
+      "signature": "mutation UpsertGdprConsentCategories($input: UpsertGdprConsentCategoriesInput!)",
+      "variables": [
+        "input"
+      ],
+      "results": [
+        {
+          "name": "UpsertGdprConsentCategories",
+          "status": 200,
+          "keys": [
+            "upsertGdprConsentCategories"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountIdByProject",
+      "signature": "query GetAccountIdByProject($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountIdByProject",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "Authorization",
+      "signature": "query Authorization",
+      "variables": [],
+      "results": [
+        {
+          "name": "Authorization",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectAssetLifecyclePolicy",
+      "signature": "query GetProjectAssetLifecyclePolicy($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectAssetLifecyclePolicy",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectForProjectSwitcher",
+      "signature": "query GetProjectForProjectSwitcher($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectForProjectSwitcher",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAiAssistantStatus",
+      "signature": "query GetAiAssistantStatus($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetAiAssistantStatus",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAssetForHeader",
+      "signature": "query GetAssetForHeader($assetId: ID!)",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "GetAssetForHeader",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFolderForInvites",
+      "signature": "query GetFolderForInvites($id: ID!)",
+      "variables": [
+        "id"
+      ],
+      "results": [
+        {
+          "name": "GetFolderForInvites",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectPermissions",
+      "signature": "query GetProjectPermissions($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectPermissions",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetRootCollectionForProject",
+      "signature": "query GetRootCollectionForProject($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetRootCollectionForProject",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectFieldGroups",
+      "signature": "query GetProjectFieldGroups($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectFieldGroups",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetRolesForResources",
+      "signature": "query GetRolesForResources($accountId: ID!, $locale: SupportedLocale)",
+      "variables": [
+        "accountId",
+        "locale"
+      ],
+      "results": [
+        {
+          "name": "GetRolesForResources",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectFieldDefinitions",
+      "signature": "query GetProjectFieldDefinitions($projectId: ID!, $query: String, $excludeSystemFields: Boolean)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectFieldDefinitions",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFolderPermissions",
+      "signature": "query GetFolderPermissions($folderId: ID!)",
+      "variables": [
+        "folderId"
+      ],
+      "results": [
+        {
+          "name": "GetFolderPermissions",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectForNavigation",
+      "signature": "query GetProjectForNavigation($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectForNavigation",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAssetForNavigation",
+      "signature": "query GetAssetForNavigation($assetId: ID!)",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "GetAssetForNavigation",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAncestorFolders",
+      "signature": "query GetAncestorFolders($assetId: ID!)",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "GetAncestorFolders",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectNotificationStatus",
+      "signature": "query GetProjectNotificationStatus($accountId: ID!, $projectId: ID!)",
+      "variables": [
+        "accountId",
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectNotificationStatus",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectNotificationOverrideStatus",
+      "signature": "query GetProjectNotificationOverrideStatus($accountId: ID!, $projectId: ID!)",
+      "variables": [
+        "accountId",
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectNotificationOverrideStatus",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetDirectMembershipsForFacepile",
+      "signature": "query GetDirectMembershipsForFacepile($resourceId: ID!)",
+      "variables": [
+        "resourceId"
+      ],
+      "results": [
+        {
+          "name": "GetDirectMembershipsForFacepile",
+          "status": 200,
+          "keys": [
+            "directMemberships",
+            "indirectMembershipsTotalCount",
+            "resource"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetResource",
+      "signature": "query GetResource($id: ID!)",
+      "variables": [
+        "id"
+      ],
+      "results": [
+        {
+          "name": "GetResource",
+          "status": 200,
+          "keys": [
+            "resource"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetMountedStorageSettings",
+      "signature": "query GetMountedStorageSettings($accountId: ID!, $projectId: ID!)",
+      "variables": [
+        "accountId",
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetMountedStorageSettings",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectAppliedPolicies",
+      "signature": "query GetProjectAppliedPolicies($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectAppliedPolicies",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFolderRestrictions",
+      "signature": "query GetFolderRestrictions($id: ID!)",
+      "variables": [
+        "id"
+      ],
+      "results": [
+        {
+          "name": "GetFolderRestrictions",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetPlans",
+      "signature": "query GetPlans($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetPlans",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectSelectMemberOptions",
+      "signature": "query GetProjectSelectMemberOptions($projectId: ID, $shareId: ID)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectSelectMemberOptions",
+          "status": 200,
+          "keys": [
+            "projectSelectMemberOptions"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetCollection",
+      "signature": "query GetCollection($id: ID!)",
+      "variables": [
+        "id"
+      ],
+      "results": [
+        {
+          "name": "GetCollection",
+          "status": 200,
+          "keys": [
+            "collection"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFolderStats",
+      "signature": "query GetFolderStats($folderId: ID!)",
+      "variables": [
+        "folderId"
+      ],
+      "results": [
+        {
+          "name": "GetFolderStats",
+          "status": 200,
+          "keys": [
+            "folder"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountPermissions",
+      "signature": "query GetAccountPermissions($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountPermissions",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAccountFieldManagementPermission",
+      "signature": "query GetAccountFieldManagementPermission($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetAccountFieldManagementPermission",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetWorkspaceActions",
+      "signature": "query GetWorkspaceActions($workspaceId: ID!, $pageInput: PageInput!, $orders: [ActionOrderInput!])",
+      "variables": [
+        "workspaceId",
+        "pageInput",
+        "orders"
+      ],
+      "results": [
+        {
+          "name": "GetWorkspaceActions",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "ProjectConnectedToLightroom",
+      "signature": "query ProjectConnectedToLightroom($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "ProjectConnectedToLightroom",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAuthenticationMethod",
+      "signature": "query GetAuthenticationMethod",
+      "variables": [],
+      "results": [
+        {
+          "name": "GetAuthenticationMethod",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectRootIds",
+      "signature": "query GetProjectRootIds($projectId: ID!)",
+      "variables": [
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectRootIds",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetWorkspaceInteractiveAssetSettings",
+      "signature": "query GetWorkspaceInteractiveAssetSettings($workspaceId: ID!)",
+      "variables": [
+        "workspaceId"
+      ],
+      "results": [
+        {
+          "name": "GetWorkspaceInteractiveAssetSettings",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetWorkspacePermissionsForInteractiveEligibleDialog",
+      "signature": "query GetWorkspacePermissionsForInteractiveEligibleDialog($workspaceId: ID!)",
+      "variables": [
+        "workspaceId"
+      ],
+      "results": [
+        {
+          "name": "GetWorkspacePermissionsForInteractiveEligibleDialog",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "HydrateProjects",
+      "signature": "query HydrateProjects($accountId: ID!, $projectIds: [ID!]!)",
+      "variables": [
+        "accountId",
+        "projectIds"
+      ],
+      "results": [
+        {
+          "name": "HydrateProjects",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetLabsExperimentEnrollments",
+      "signature": "query GetLabsExperimentEnrollments($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetLabsExperimentEnrollments",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetFolderAssets",
+      "signature": "query GetFolderAssets($accountId: ID!, $folderId: ID!, $assetType: ChildAssetTypeInput, $customSort: Boolean, $page: PageInput!, $sortBy: [MetadataSortByInput!])",
+      "variables": [
+        "accountId",
+        "assetType",
+        "customSort",
+        "folderId",
+        "page",
+        "sortBy"
+      ],
+      "results": [
+        {
+          "name": "GetFolderAssets",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetCollectionsForProject",
+      "signature": "query GetCollectionsForProject($projectId: ID!, $order: CollectionsOrderInput! = {field: INSERTED_AT, direction: DESC_NULLS_LAST}, $page: PageInput! = {first: 50})",
+      "variables": [
+        "order",
+        "page",
+        "projectId"
+      ],
+      "results": [
+        {
+          "name": "GetCollectionsForProject",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetUnopenedInboxItemCountForPrimaryNav",
+      "signature": "query GetUnopenedInboxItemCountForPrimaryNav($accountId: ID!)",
+      "variables": [
+        "accountId"
+      ],
+      "results": [
+        {
+          "name": "GetUnopenedInboxItemCountForPrimaryNav",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetProjectTemplates",
+      "signature": "query GetProjectTemplates($workspaceId: ID!)",
+      "variables": [
+        "workspaceId"
+      ],
+      "results": [
+        {
+          "name": "GetProjectTemplates",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetSharesForProjectNavigation",
+      "signature": "query GetSharesForProjectNavigation($projectId: ID!, $page: PageInput!, $orderBy: [ShareOrderInput!], $filters: ShareFiltersInput)",
+      "variables": [
+        "projectId",
+        "page",
+        "orderBy",
+        "filters"
+      ],
+      "results": [
+        {
+          "name": "GetSharesForProjectNavigation",
+          "status": 200,
+          "keys": [
+            "project"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "HydrateScrolledAssets",
+      "signature": "query HydrateScrolledAssets($ids: [ID!]!, $includeDeleted: Boolean, $visibleFieldIds: [ID!])",
+      "variables": [
+        "ids",
+        "includeDeleted",
+        "visibleFieldIds"
+      ],
+      "results": [
+        {
+          "name": "HydrateScrolledAssets",
+          "status": 200,
+          "keys": [
+            "assets"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "HydrateSettledAssets",
+      "signature": "query HydrateSettledAssets($ids: [ID!]!)",
+      "variables": [
+        "ids"
+      ],
+      "results": [
+        {
+          "name": "HydrateSettledAssets",
+          "status": 200,
+          "keys": [
+            "assets"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "MountedStorageAsset",
+      "signature": "query MountedStorageAsset($assetId: ID!)",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "MountedStorageAsset",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAssetVersionIds",
+      "signature": "query GetAssetVersionIds($assetId: ID!)",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "GetAssetVersionIds",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetCommentsByAsset",
+      "signature": "query GetCommentsByAsset($filters: CommentFilters, $orderBy: [CommentOrder!]!, $includeReplies: Boolean, $assetId: ID!, $searchTerm: String) @stewardship(stewards: [VIEWER])",
+      "variables": [
+        "assetId",
+        "orderBy",
+        "includeReplies"
+      ],
+      "results": [
+        {
+          "name": "GetCommentsByAsset",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAggregateDataByAssetIds",
+      "signature": "query GetAggregateDataByAssetIds($assetIds: [ID]!)",
+      "variables": [
+        "assetIds"
+      ],
+      "results": [
+        {
+          "name": "GetAggregateDataByAssetIds",
+          "status": 200,
+          "keys": [
+            "aggregateData"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAncestorFolderIds",
+      "signature": "query GetAncestorFolderIds($id: ID!)",
+      "variables": [
+        "id"
+      ],
+      "results": [
+        {
+          "name": "GetAncestorFolderIds",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAssetParentId",
+      "signature": "query GetAssetParentId($assetId: ID!)",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "GetAssetParentId",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAssetsForViewer",
+      "signature": "query GetAssetsForViewer($assetIds: [ID!]!, $sortBys: [MetadataSortByInput!] = [], $locale: SupportedLocale) @stewardship(stewards: [VIEWER])",
+      "variables": [
+        "sortBys",
+        "assetIds",
+        "locale"
+      ],
+      "results": [
+        {
+          "name": "GetAssetsForViewer",
+          "status": 200,
+          "keys": [
+            "assets"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetTranscriptionStreamUrl",
+      "signature": "query GetTranscriptionStreamUrl($assetId: ID!) @stewardship(stewards: [VIEWER])",
+      "variables": [
+        "assetId"
+      ],
+      "results": [
+        {
+          "name": "GetTranscriptionStreamUrl",
+          "status": 200,
+          "keys": [
+            "asset"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "MarkAssetSeen",
+      "signature": "mutation MarkAssetSeen($input: MarkAssetSeenInput!)",
+      "variables": [
+        "input"
+      ],
+      "results": [
+        {
+          "name": "MarkAssetSeen",
+          "status": 200,
+          "keys": [
+            "markAssetSeen"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetAssetThumbnails",
+      "signature": "query GetAssetThumbnails($accountId: ID!, $assetIds: [ID!]!)",
+      "variables": [
+        "accountId",
+        "assetIds"
+      ],
+      "results": [
+        {
+          "name": "GetAssetThumbnails",
+          "status": 200,
+          "keys": [
+            "account"
+          ],
+          "codes": []
+        }
+      ]
+    },
+    {
+      "name": "GetGeoFeatures",
+      "signature": "query GetGeoFeatures",
+      "variables": [],
+      "results": [
+        {
+          "name": "GetGeoFeatures",
+          "status": 200,
+          "keys": [
+            "me"
+          ],
+          "codes": []
+        }
+      ]
+    }
+  ]
+}
