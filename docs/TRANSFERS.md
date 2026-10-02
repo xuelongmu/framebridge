@@ -177,7 +177,11 @@ Conflict and source rules:
   is no overwrite, auto-version, or same-name/size shortcut.
 - Symlinks, junctions, and other Windows reparse points inside the tree are
   reported and skipped. A linked root directory is refused.
-- Empty files and special files fail preflight. Empty directories are supported.
+- Empty files fail preflight by default. Add `--skip-empty-files` to
+  `upload-folder` to omit zero-byte files from uploads. Both previews and execution
+  reports list them in `skipped` with reason `empty_file`. They still count toward
+  the entry limit. Empty directories are preserved, including directories that
+  contain only skipped files. Special files still fail preflight.
 - Sources changed since a journaled upload, renamed/moved destinations, and
   incomplete creation outcomes require reconciliation.
 

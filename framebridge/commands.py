@@ -96,6 +96,7 @@ def parser():
     s.add_argument('--project', required=True)
     s.add_argument('--folder-id', required=True, help='Existing remote parent folder')
     s.add_argument('--contents', action='store_true', help='Put contents directly in the destination without creating the local root name')
+    s.add_argument('--skip-empty-files', action='store_true', help='Skip zero-byte files and include them in the skipped report')
     s.add_argument('--existing-folders', choices=('error','reuse'), default='error')
     s.add_argument('--max-total-bytes', type=int, help='Required for --execute; cap for all planned source files')
     s.add_argument('--limit', type=int, default=10000)
@@ -331,7 +332,8 @@ def folder_command(api, state, args):
             return upload_tree(api, operations, uploads, args.path, args.project, args.folder_id,
                                execute=execute, contents=args.contents, existing_folders=args.existing_folders,
                                limit=args.limit, max_total_bytes=args.max_total_bytes,
-                               experimental=args.experimental_multipart, progress=progress)
+                               experimental=args.experimental_multipart, progress=progress,
+                               skip_empty_files=args.skip_empty_files)
         finally:
             uploads.close()
     finally:

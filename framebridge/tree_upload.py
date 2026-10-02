@@ -14,7 +14,7 @@ def _linked(path):
                                            getattr(stat, 'FILE_ATTRIBUTE_REPARSE_POINT', 0x400))
 
 
-def scan_tree(path, limit=10000):
+def scan_tree(path, limit=10000, *, skip_empty_files=False):
     path = Path(path).absolute()
     if limit <= 0 or _linked(path) or not path.is_dir():
         raise UploaderError('Choose a real directory and a positive entry limit; root symlinks/junctions are refused.')
@@ -52,7 +52,10 @@ def scan_tree(path, limit=10000):
             elif item.is_file():
                 mark = fingerprint(item)
                 if mark[0] <= 0:
-                    raise UploaderError('Empty files are unsupported by the upload protocol; no upload started.')
+                    if skip_empty_files:
+                        skipped.append({'relative_path': item_relative, 'reason': 'empty_file'})
+                        continue
+                    raise UploaderError('Empty files are unsupported; use --skip-empty-files to skip them. No upload started.')
                 files.append({'path': str(item), 'relative_path': item_relative,
                               'relative_parent': relative, 'name': name, 'bytes': mark[0],
                               'fingerprint': mark})
@@ -90,12 +93,13 @@ def _file_plan(api, journal, item, project_id, folder_id, children):
 
 
 def plan_tree(api, folders, uploads, path, project_id, parent_id, *, contents=False,
-              existing_folders='error', limit=10000, max_total_bytes=None, experimental=False):
+              existing_folders='error', limit=10000, max_total_bytes=None, experimental=False,
+              skip_empty_files=False):
     if existing_folders not in {'error', 'reuse'}:
         raise UploaderError('Existing-folder policy must be error or reuse.')
     if max_total_bytes is not None and max_total_bytes <= 0:
         raise UploaderError('--max-total-bytes must be positive.')
-    local = scan_tree(path, limit)
+    local = scan_tree(path, limit, skip_empty_files=skip_empty_files)
     if max_total_bytes is not None and local['total_bytes'] > max_total_bytes:
         raise UploaderError('Local tree exceeds --max-total-bytes; no upload started.')
     if not experimental and any(item['bytes'] > PART_MIN for item in local['files']):
@@ -157,12 +161,13 @@ def _check_source(root, item):
 
 def upload_tree(api, folders, uploads, path, project_id, parent_id, *, execute=False,
                 contents=False, existing_folders='error', limit=10000, max_total_bytes=None,
-                experimental=False, progress=None):
+                experimental=False, progress=None, skip_empty_files=False):
     if execute and (max_total_bytes is None or max_total_bytes <= 0):
         raise UploaderError('Executing a tree upload requires a positive --max-total-bytes cap.')
     plan = plan_tree(api, folders, uploads, path, project_id, parent_id,
                      contents=contents, existing_folders=existing_folders, limit=limit,
-                     max_total_bytes=max_total_bytes, experimental=experimental)
+                     max_total_bytes=max_total_bytes, experimental=experimental,
+                     skip_empty_files=skip_empty_files)
     if not execute:
         return plan
     root = Path(plan['root'])

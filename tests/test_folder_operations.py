@@ -335,6 +335,44 @@ class TreeUpload(OperationFixture):
             self.tree(execute=True, max_total_bytes=100)
         self.assertEqual(self.api.created, [])
 
+    def test_tree_skips_empty_files_in_plan_and_execution(self):
+        (self.source / 'zero').touch()
+        (self.source / 'a' / 'nested' / 'zero').touch()
+        plan = self.tree(skip_empty_files=True)
+        expected = [{'relative_path': 'zero', 'reason': 'empty_file'},
+                    {'relative_path': 'a/nested/zero', 'reason': 'empty_file'}]
+        self.assertEqual(plan['skipped'], expected)
+        self.assertEqual(plan['file_count'], 2)
+        self.assertEqual(plan['total_bytes'], 10)
+        self.assertEqual(self.api.created, [])
+        with patch('framebridge.tree_upload.upload', side_effect=self.fake_upload):
+            result = self.tree(skip_empty_files=True, execute=True, max_total_bytes=10)
+        self.assertEqual(result['skipped'], expected)
+        self.assertEqual(result['failed'], [])
+        self.assertEqual(len(self.sent), 2)
+        self.assertTrue(all(Path(path).stat().st_size > 0 for path in self.sent))
+
+    def test_tree_all_empty_preserves_directories_without_uploads(self):
+        for path in self.source.rglob('*.txt'):
+            path.write_bytes(b'')
+        with patch('framebridge.tree_upload.upload') as send:
+            result = self.tree(skip_empty_files=True, execute=True, max_total_bytes=1)
+        send.assert_not_called()
+        self.assertEqual(len(result['folders']), 4)
+        self.assertEqual(len(result['skipped']), 2)
+        self.assertEqual(result['total_bytes'], 0)
+
+    def test_skipped_empty_files_still_count_toward_limit(self):
+        (self.source / 'zero').touch()
+        with self.assertRaisesRegex(UploaderError, 'limit'):
+            self.tree(skip_empty_files=True, limit=6)
+
+    def test_skip_empty_cli_option(self):
+        from framebridge.commands import parser
+        args = ['upload-folder', str(self.source), '--project', 'p', '--folder-id', 'right']
+        self.assertFalse(parser().parse_args(args).skip_empty_files)
+        self.assertTrue(parser().parse_args(args + ['--skip-empty-files']).skip_empty_files)
+
     def test_tree_file_conflict_preflight(self):
         self.api.add('delivery', 'delivery', 'right')
         self.api.add('conflict', 'root.txt', 'delivery', type='UnsupportedAsset', filesize=4)
